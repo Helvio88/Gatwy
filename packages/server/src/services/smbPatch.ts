@@ -379,62 +379,36 @@ export function patchSmbNtlm(): void {
   // directory listing works for users who lack write/delete rights on the share.
   // rmdir also uses open_folder, which means it now opens the folder without DELETE
   // access and fails with STATUS_ACCESS_DENIED when calling SetFileInformation.
-  // Fix: inject a new message type (open_folder_delete) that requests only
-  // DELETE | SYNCHRONIZE, and replace SMB.prototype.rmdir to use it.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const messageTool = _require('@marsaud/smb2/lib/tools/message') as (obj: Record<string, any>) => Record<string, any>;
+  //
+  // Fix: replace SMB.prototype.rmdir with a version that temporarily swaps
+  // openFolderMod.generate to request DELETE | SYNCHRONIZE access just for the
+  // duration of the synchronous generate() call inside SMB2Forge.request, then
+  // immediately restores the original. Because generate() is called synchronously
+  // within SMB2Forge.request (before any async I/O), this is safe in Node.js's
+  // single-threaded event loop — no concurrent callers can observe the swap.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const BigIntCtor = _require('@marsaud/smb2/lib/tools/bigint') as new (n: number, v: number) => { toBuffer(): Buffer };
 
   // DELETE(0x10000) | SYNCHRONIZE(0x100000) — minimum to mark a dir for deletion
   const DIR_DELETE_ONLY_ACCESS = 0x00010000 | 0x00100000; // = 0x00110000
 
-  // Build and register the open_folder_delete message module in the CJS cache.
-  // SMB2Forge.request loads messages via require('../messages/' + name), so
-  // injecting here lets it find our synthetic module without touching disk.
-  const openFolderDeleteModule = messageTool({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    generate(connection: any, params: any) {
-      const buffer = Buffer.from(params.path as string, 'ucs2');
-      return new SMB2Message({
-        headers: {
-          Command: 'CREATE',
-          SessionId: connection.SessionId,
-          TreeId: connection.TreeId,
-          ProcessId: connection.ProcessId,
-        },
-        request: {
-          Buffer: buffer,
-          DesiredAccess: DIR_DELETE_ONLY_ACCESS,
-          FileAttributes: 0x00000000,
-          ShareAccess: 0x00000007,       // FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
-          CreateDisposition: 0x00000001, // FILE_OPEN
-          CreateOptions: 0x00000021,     // FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT
-          NameOffset: 0x0078,
-          CreateContextsOffset: 0x007a + buffer.length,
-        },
-      });
-    },
-  });
-
-  // Derive the cache key from the sibling open_folder.js path (same directory).
-  const openFolderMsgPath = _require.resolve('@marsaud/smb2/lib/messages/open_folder');
-  const openFolderDeletePath = openFolderMsgPath.replace(/open_folder\.js$/, 'open_folder_delete.js');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (_require as any).cache[openFolderDeletePath] = {
-    id: openFolderDeletePath,
-    filename: openFolderDeletePath,
-    loaded: true,
-    exports: openFolderDeleteModule,
-    children: [],
-    paths: [],
-  };
-
-  // Replace SMB.prototype.rmdir with a corrected version using open_folder_delete.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const patchedRmdir = function(this: any, path: string, cb: (err?: Error | null) => void) {
     const connection = this;
-    SMB2Request('open_folder_delete', { path }, connection, (err?: Error | null, file?: any) => {
+
+    // Temporarily override open_folder's generate to request DELETE access.
+    // generate() is invoked synchronously inside SMB2Request so we restore
+    // before any async work begins — no race with concurrent readdir calls.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const savedGenerate = openFolderMod.generate as (...a: any[]) => any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    openFolderMod.generate = function(conn: any, params: any): any {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const msg = savedGenerate.call(openFolderMod, conn, params) as any;
+      msg.request.DesiredAccess = DIR_DELETE_ONLY_ACCESS;
+      return msg;
+    };
+    SMB2Request('open_folder', { path }, connection, (err?: Error | null, file?: any) => {
       if (err) { cb && cb(err); return; }
       SMB2Request(
         'set_info',
@@ -451,6 +425,8 @@ export function patchSmbNtlm(): void {
         },
       );
     });
+    // Restore generate immediately — generate() was already called synchronously above.
+    openFolderMod.generate = savedGenerate;
   };
 
   SMB.prototype.rmdir = autoPromise(SMB2Connection.requireConnect(patchedRmdir));
