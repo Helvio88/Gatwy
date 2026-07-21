@@ -5,4 +5,4 @@ set -e
 # host) is writable by the node user before dropping privileges.
 chown -R node:node /app/data
 
-exec gosu node "$@"
+exec su-exec node "$@"
