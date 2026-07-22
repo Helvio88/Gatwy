@@ -2,6 +2,9 @@
   "name": "Gatwy",
   "version": "0.18.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "packages/server",
     "packages/client"
