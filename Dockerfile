@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ RUN npm run build --workspace=packages/client
 RUN npm run build --workspace=packages/server
 
 # Stage 2: Production
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
@@ -57,7 +57,7 @@ VOLUME /app/data
 ENV DATA_DIR=/app/data
 ENV NODE_ENV=production
 # @marsaud/smb2 uses ntlm which calls DES-ECB — a legacy cipher disabled in OpenSSL 3.
-# Enable the OpenSSL legacy provider so SMB NTLM authentication works on Node 20.
+# Enable the OpenSSL legacy provider so SMB NTLM authentication works on modern Node runtimes.
 ENV NODE_OPTIONS="--openssl-legacy-provider"
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
