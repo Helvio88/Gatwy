@@ -357,7 +357,15 @@ export async function mlwAddHost(address: string, httpPort: number): Promise<Mlw
     address,
     http_port: httpPort,
   });
-  if (res.status >= 400) throw new Error(`Failed to add host: ${res.body.toString('utf8')}`);
+  if (res.status >= 400) {
+    const raw = res.body.toString('utf8');
+    if (/Connect|Connection reset|timed out|HostNotFound|os error/i.test(raw)) {
+      throw new Error(
+        `Cannot reach Sunshine at ${address}:${httpPort}. Check host power, firewall (TCP 47989/47984), and that Sunshine is running.`,
+      );
+    }
+    throw new Error(`Failed to add host: ${raw}`);
+  }
   const data = JSON.parse(res.body.toString('utf8')) as { host: MlwHost };
   return data.host;
 }
