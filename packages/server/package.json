@@ -1,6 +1,6 @@
 {
   "name": "@gatwy/server",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "private": true,
   "engines": {
     "node": ">=22"
@@ -48,7 +48,3 @@
     "typescript": "^7.0.2"
   }
 }
-
-
-
-
