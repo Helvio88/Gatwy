@@ -196,7 +196,7 @@ export async function ensureMoonlightWeb(): Promise<void> {
   starting = (async () => {
     if (!isMoonlightWebAvailable()) {
       throw new Error(
-        'Moonlight web-server binary not found. Build with INCLUDE_MOONLIGHT=1, set MOONLIGHT_DOWNLOAD=1, or point MOONLIGHT_WEB_DIR at a moonlight-web-stream install.',
+        'Moonlight web-server binary not found. Set MOONLIGHT_DOWNLOAD=1 (runtime fetch), or bake with INCLUDE_MOONLIGHT=1, or point MOONLIGHT_WEB_DIR at a moonlight-web-stream install.',
       );
     }
 

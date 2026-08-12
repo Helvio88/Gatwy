@@ -33,10 +33,11 @@ ARG MOONLIGHT_WEB_VERSION=v2.10.0
 
 WORKDIR /app
 
-# Runtime deps: curl/ca-certs for healthcheck (and optional MLW fetch),
-# gosu for privilege drop, openssl for TLS helpers.
+# Runtime deps: curl/ca-certs for healthcheck and optional MLW fetch
+# (MOONLIGHT_DOWNLOAD=1), gosu for privilege drop, openssl for TLS helpers,
+# libgcc-s1 for the moonlight-web gnu binaries when they are fetched at runtime.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl gosu openssl \
+  && apt-get install -y --no-install-recommends ca-certificates curl gosu openssl libgcc-s1 \
   && rm -rf /var/lib/apt/lists/*
 
 # Gatwy chrome patches + fetch helper. Patches are MIT Gatwy code; the
@@ -57,7 +58,7 @@ RUN set -eu; \
         fetch-moonlight-web /opt/moonlight-web "$MOONLIGHT_WEB_VERSION" "$TARGETARCH"; \
       ;; \
     *) \
-      echo "Skipping moonlight-web-stream (INCLUDE_MOONLIGHT=$INCLUDE_MOONLIGHT). Moonlight sessions will report available: false until opted in."; \
+      echo "Skipping moonlight-web-stream (INCLUDE_MOONLIGHT=$INCLUDE_MOONLIGHT). Set MOONLIGHT_DOWNLOAD=1 at runtime to fetch it."; \
       ;; \
   esac
 
@@ -92,7 +93,8 @@ ENV NODE_ENV=production
 # @marsaud/smb2 uses ntlm which calls DES-ECB — a legacy cipher disabled in OpenSSL 3.
 ENV NODE_OPTIONS="--openssl-legacy-provider"
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
+# start-period covers first-boot MOONLIGHT_DOWNLOAD (≈15MB GitHub fetch) before listen.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s \
   CMD curl -fsk https://localhost:7443/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]

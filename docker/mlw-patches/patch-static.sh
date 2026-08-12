@@ -63,8 +63,13 @@ fi
 
 # Skip getStreamRectCorrected letterbox math when html.gatwy-fullscreen
 # (object-fit: fill). Windowed contain still uses the original corrected rect.
-# Idempotent: skipped when the gatwy-fullscreen early-return is already present.
-if [ -f "$STREAM_INDEX" ] && ! grep -q 'gatwy-fullscreen' "$STREAM_INDEX"; then
+# MLW v2.10.0 exports this from stream/video/index.js (older trees had it in
+# stream/index.js). Idempotent: skipped when gatwy-fullscreen is already present.
+patch_stream_rect() {
+  target="$1"
+  if [ ! -f "$target" ] || grep -q 'gatwy-fullscreen' "$target"; then
+    return 0
+  fi
   node -e '
 const fs = require("fs");
 const path = process.argv[1];
@@ -73,13 +78,14 @@ const early =
   "if (typeof document !== \"undefined\" && document.documentElement && document.documentElement.classList.contains(\"gatwy-fullscreen\")) { return boundingRect; }";
 const re = /function getStreamRectCorrected\s*\(\s*boundingRect\s*,\s*videoSize\s*\)\s*\{/;
 if (!re.test(text)) {
-  console.error("warning: could not patch getStreamRectCorrected in stream/index.js");
   process.exit(0);
 }
 text = text.replace(re, (chunk) => chunk + "\n    " + early);
 fs.writeFileSync(path, text);
 console.log("patched getStreamRectCorrected fill skip into " + path);
-' "$STREAM_INDEX"
-fi
+' "$target"
+}
+patch_stream_rect "$STREAM_INDEX"
+patch_stream_rect "$STATIC_DIR/stream/video/index.js"
 
 echo "Gatwy moonlight-web static patches applied in $STATIC_DIR"

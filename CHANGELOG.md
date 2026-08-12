@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.16
+
+### Packaging
+
+- Removed `docker-compose.moonlight.yml`. Moonlight is enabled with `MOONLIGHT_DOWNLOAD=1` on the default image — that one env var is enough (fetch into `/opt/moonlight-web`, apply Gatwy patches, `available: true`).
+- Runtime fetch retries GitHub downloads, chmod's upstream 0644 binaries so the `node` user can exec them, and re-applies chrome patches on start.
+- Static `getStreamRectCorrected` patch now targets MLW v2.10.0 `stream/video/index.js` (it never matched `stream/index.js`).
+- `INCLUDE_MOONLIGHT=1` remains an optional image bake-in (`docker build --build-arg` or compose `build.args`). Default image stays MIT-clean until you opt in.
+
 ## 0.19.15
 
 ### Moonlight session panel
