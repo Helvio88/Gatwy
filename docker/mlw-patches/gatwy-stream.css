@@ -180,6 +180,7 @@ html.stream {
 html.stream,
 html.stream body,
 body.stream {
+  --stream-video-top: 0;
   overflow: hidden !important;
   overscroll-behavior: none !important;
   margin: 0 !important;
@@ -292,29 +293,32 @@ canvas.video-stream {
 }
 
 /*
- * Contain + center the stream in the iframe pane.
- * Smaller than the canvas → letterbox/pillarbox with black bars, video
- * centered H+V. Matching the pane (Auto) → contain with equal aspect fills
- * visually. No 100vmin mins (those caused scrollbars in 0.19.8). Keep
+ * Full-pane box + object-fit contain. Fill when the stream matches the
+ * pane (Auto after correct relaunch); true H+V center with black bars when
+ * smaller. No translate centering — 0.19.10’s top/left 50% + translate +
+ * width/height auto fought MLW’s --stream-video-top / canvas bitmap sizing
+ * and pushed the stream up/left. No object-fit:fill (stretches). Keep
  * html/body overflow:hidden above.
  */
 .video-stream,
 video.video-stream,
 canvas.video-stream {
   position: fixed !important;
-  top: 50% !important;
-  left: 50% !important;
-  right: auto !important;
-  bottom: auto !important;
-  inset: auto !important;
-  transform: translate(-50%, -50%) !important;
-  width: auto !important;
-  height: auto !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: contain !important;
+  object-position: center center !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
+  margin: 0 !important;
 }
