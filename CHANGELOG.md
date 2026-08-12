@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.19.9
+
+### Moonlight stream UI
+
+- **Auto** measures the visible Gatwy stream surface / iframe client box exactly (even WxH via `clientWidth`/`clientHeight` + floored `getBoundingClientRect`), writes `mlSettings` as `videoSize: 'custom'`, and relaunches so Sunshine (sops) matches the pane — no wasted letterbox / dual-desktop look from a mismatched host size. Post-load correction if the first measure drifted.
+- Scrollbars stay gone: stream document overflow lock (from 0.19.8), iframe `scrolling="no"` + `overflow: hidden`, scrollbar gutters hidden. Video fill unchanged (`inset: 0`, `object-fit: fill`).
+- **Send key** is Gatwy-native in the right panel (presets + custom VK hex/decimal → same-origin `StreamInput.sendKey`). No longer opens moonlight-web’s neon FormModal.
+- Remaining MLW modal / context-menu chrome quieted to dark muted Gatwy style; MLW notification toasts hidden (Gatwy owns session status). Left `.sidebar-overlay` stays fully hidden. Floating soft-keyboard hide button stays, de-neoned.
+
+## 0.19.8
+
+### Moonlight stream UI
+
+- Fixed iframe scrollbars after the 0.19.7 stream fill CSS. moonlight-web’s `body` still used safe-area padding + `min-height: 100vh` without `overflow: hidden`, so a fixed `width/height: 100%` video could grow past the iframe viewport.
+- Stream document is now clipped (`html.stream` / `body.stream` overflow hidden, zeroed margin/padding/min-height); video/canvas size via `inset: 0` with `width/height: auto` (fill behavior unchanged — no return to contain/pillarbox). Left sidebar stays hidden.
+- CSS kept in sync between Docker-baked `gatwy-stream.css` and runtime `MLW_CHROME_STYLE` inject. Gatwy session surface already used `overflow-hidden`.
+
 ## 0.19.7
 
 ### Moonlight stream UI

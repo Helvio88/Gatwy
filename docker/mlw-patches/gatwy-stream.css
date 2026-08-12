@@ -172,10 +172,131 @@ html.stream {
 }
 
 /*
+ * Lock the stream document inside the iframe. MLW’s standard.css sets
+ * body padding (safe-area) + min-height:100vh without overflow:hidden, so a
+ * fixed 100%×100% video fill can grow past the iframe viewport and show
+ * scrollbars. Zero out chrome and clip overflow.
+ */
+html.stream,
+html.stream body,
+body.stream {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none !important;
+}
+
+html.stream::-webkit-scrollbar,
+html.stream body::-webkit-scrollbar,
+body.stream::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+#root,
+#input,
+.video-stream,
+video.video-stream,
+canvas.video-stream {
+  overflow: hidden !important;
+}
+
+/*
+ * Quiet ALL MLW modal chrome (FormModal, message modals, connecting).
+ * Connecting-specific rules above refine size/copy; this kills neon cyan
+ * for anything else that still mounts via showModal.
+ */
+.modal-background:not(.modal-disabled) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(1px) !important;
+}
+
+.modal-background:not(.modal-disabled) .modal-content {
+  background: rgba(16, 16, 18, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  text-shadow: none !important;
+  border-radius: 10px !important;
+  width: auto !important;
+  max-width: min(320px, 88vw) !important;
+  max-height: min(70vh, 480px) !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  overflow: auto !important;
+}
+
+.modal-content button,
+.modal-content input,
+.modal-content select,
+.modal-content .textlike {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border-radius: 8px !important;
+}
+
+.modal-content button:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  transform: none !important;
+}
+
+/* Hide MLW toast stack — Gatwy owns session status / errors. */
+#notification-list,
+.notification-list,
+.notification-element {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+/* Soften leftover neon on context menus + floating keyboard hide. */
+.context-menu-background {
+  background: rgba(16, 16, 18, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.context-menu-element {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.context-menu-element:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-left: none !important;
+  transform: none !important;
+  padding-left: 10px !important;
+}
+
+.stream-keyboard-floating-button {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
+}
+
+/*
  * Fill the iframe pane — kill pillarbox/letterbox bars from MLW’s default
  * centered vmin + object-fit:contain. Prefer fill over cover (cover crops
- * desktop edges). Fixed presets in a differently-shaped pane may stretch
- * slightly; Auto matching the client area stays preferred.
+ * desktop edges). Size via inset only (width/height:auto) so 100% doesn’t
+ * fight body padding/min-height. Fixed presets in a differently-shaped pane
+ * may stretch slightly; Auto matching the client area stays preferred.
  */
 .video-stream,
 video.video-stream,
@@ -184,12 +305,15 @@ canvas.video-stream {
   inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   transform: none !important;
-  width: 100% !important;
-  height: 100% !important;
+  width: auto !important;
+  height: auto !important;
   max-width: none !important;
   max-height: none !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: fill !important;
+  box-sizing: border-box !important;
 }

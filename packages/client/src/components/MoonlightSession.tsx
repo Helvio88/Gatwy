@@ -216,7 +216,112 @@ html.stream {
   pointer-events: none !important;
 }
 
-/* Fill iframe pane — kill pillarbox from contain + vmin centering. */
+/*
+ * Lock stream document: MLW body safe-area padding + min-height:100vh without
+ * overflow:hidden lets fixed fill grow past the iframe → scrollbars.
+ */
+html.stream,
+html.stream body,
+body.stream {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none !important;
+}
+html.stream::-webkit-scrollbar,
+html.stream body::-webkit-scrollbar,
+body.stream::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+#root,
+#input,
+.video-stream,
+video.video-stream,
+canvas.video-stream {
+  overflow: hidden !important;
+}
+
+/* Quiet ALL MLW modals (FormModal etc.) — not only connecting. */
+.modal-background:not(.modal-disabled) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(1px) !important;
+}
+.modal-background:not(.modal-disabled) .modal-content {
+  background: rgba(16, 16, 18, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  text-shadow: none !important;
+  border-radius: 10px !important;
+  width: auto !important;
+  max-width: min(320px, 88vw) !important;
+  max-height: min(70vh, 480px) !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  overflow: auto !important;
+}
+.modal-content button,
+.modal-content input,
+.modal-content select,
+.modal-content .textlike {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border-radius: 8px !important;
+}
+.modal-content button:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  transform: none !important;
+}
+
+/* Hide MLW toasts — Gatwy owns session status. */
+#notification-list,
+.notification-list,
+.notification-element {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+.context-menu-background {
+  background: rgba(16, 16, 18, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.context-menu-element {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.context-menu-element:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-left: none !important;
+  transform: none !important;
+  padding-left: 10px !important;
+}
+.stream-keyboard-floating-button {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
+}
+
+/* Fill iframe pane — inset sizing (not 100%) so fill can’t exceed viewport. */
 .video-stream,
 video.video-stream,
 canvas.video-stream {
@@ -224,14 +329,17 @@ canvas.video-stream {
   inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   transform: none !important;
-  width: 100% !important;
-  height: 100% !important;
+  width: auto !important;
+  height: auto !important;
   max-width: none !important;
   max-height: none !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: fill !important;
+  box-sizing: border-box !important;
 }
 `;
 
@@ -367,16 +475,37 @@ const MLW_GATWY_HELPER_SCRIPT = `
       var kb = getScreenKeyboard();
       try { return !!(kb && kb.isVisible()); } catch (e) { return false; }
     },
-    sendKeycode: function() {
+    /**
+     * Send a Windows VK key (or chord) via StreamInput — never opens MLW FormModal.
+     * keys: number | number[]; modifiers applied only for a single key.
+     */
+    sendKey: function(keys, modifiers) {
       var app = getApp();
+      var input = null;
       try {
-        var btn = app && app.sidebar && app.sidebar.sendKeycodeButton;
-        if (btn && typeof btn.click === 'function') {
-          btn.click();
-          return true;
+        var stream = app && typeof app.getStream === 'function' ? app.getStream() : null;
+        input = stream && typeof stream.getInput === 'function' ? stream.getInput() : null;
+      } catch (e) { input = null; }
+      if (!input || typeof input.sendKey !== 'function') return false;
+      var mods = typeof modifiers === 'number' ? modifiers : 0;
+      var list = Array.isArray(keys) ? keys : [keys];
+      var cleaned = [];
+      for (var i = 0; i < list.length; i++) {
+        var k = Number(list[i]);
+        if (!Number.isFinite(k) || k < 0 || k > 0xffff) continue;
+        cleaned.push(k | 0);
+      }
+      if (!cleaned.length) return false;
+      try {
+        if (cleaned.length === 1) {
+          input.sendKey(true, cleaned[0], mods);
+          input.sendKey(false, cleaned[0], mods);
+        } else {
+          for (var d = 0; d < cleaned.length; d++) input.sendKey(true, cleaned[d], 0);
+          for (var u = cleaned.length - 1; u >= 0; u--) input.sendKey(false, cleaned[u], 0);
         }
-      } catch (e) {}
-      return false;
+        return true;
+      } catch (e) { return false; }
     },
     toggleStats: function() {
       var app = getApp();
@@ -416,9 +545,51 @@ function mapStatus(s: SessionStatus): 'connecting' | 'connected' | 'disconnected
   return 'connecting';
 }
 
+/**
+ * Measure the visible Gatwy stream pane (surface / iframe client box).
+ * Prefer clientWidth×clientHeight (excludes scrollbar gutters); fall back to
+ * floored getBoundingClientRect after layout. Never use window size.
+ */
 function measureClientArea(el: HTMLElement | null): { width: number; height: number } {
   if (!el) return snapStreamSize(1920, 1080);
-  return snapStreamSize(el.clientWidth || 1920, el.clientHeight || 1080);
+  const rect = el.getBoundingClientRect();
+  const width = Math.floor(el.clientWidth > 0 ? el.clientWidth : rect.width);
+  const height = Math.floor(el.clientHeight > 0 ? el.clientHeight : rect.height);
+  if (width < 2 || height < 2) return snapStreamSize(1920, 1080);
+  return snapStreamSize(width, height);
+}
+
+/** Common VK chords for the Gatwy-native Send key UI (Windows virtual-key codes). */
+const ML_SEND_KEY_PRESETS: { value: string; label: string; keys: number[] }[] = [
+  { value: 'escape', label: 'Escape', keys: [0x1b] },
+  { value: 'tab', label: 'Tab', keys: [0x09] },
+  { value: 'win', label: 'Win', keys: [0x5b] },
+  { value: 'delete', label: 'Delete', keys: [0x2e] },
+  { value: 'f11', label: 'F11', keys: [0x7a] },
+  { value: 'alt-f4', label: 'Alt+F4', keys: [0x12, 0x73] },
+  { value: 'ctrl-alt-del', label: 'Ctrl+Alt+Del', keys: [0x11, 0x12, 0x2e] },
+  { value: 'ctrl-shift-esc', label: 'Ctrl+Shift+Esc', keys: [0x11, 0x10, 0x1b] },
+  { value: 'custom', label: 'Custom VK…', keys: [] },
+];
+
+/** Parse a custom VK from hex (`0x1B`), decimal (`27`), or a few names. */
+function parseCustomVk(raw: string): number | null {
+  const s = raw.trim().toLowerCase();
+  if (!s) return null;
+  const named: Record<string, number> = {
+    escape: 0x1b, esc: 0x1b, tab: 0x09, win: 0x5b, meta: 0x5b,
+    delete: 0x2e, del: 0x2e, return: 0x0d, enter: 0x0d, space: 0x20,
+  };
+  if (s in named) return named[s];
+  if (/^0x[0-9a-f]{1,4}$/.test(s)) {
+    const n = Number.parseInt(s, 16);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (/^\d{1,5}$/.test(s)) {
+    const n = Number.parseInt(s, 10);
+    return Number.isFinite(n) && n <= 0xffff ? n : null;
+  }
+  return null;
 }
 
 /** Write moonlight-web launch settings (bitrate/fps/size/sops) before (re)loading the iframe. */
@@ -456,7 +627,7 @@ type GatwyMlwHelpers = {
   hideKeyboard?: () => boolean;
   toggleKeyboard?: () => boolean;
   isKeyboardVisible?: () => boolean;
-  sendKeycode?: () => boolean;
+  sendKey?: (keys: number | number[], modifiers?: number) => boolean;
   toggleStats?: () => boolean;
 };
 
@@ -577,6 +748,9 @@ export function MoonlightSession({
   const [statsOn, setStatsOn] = useState(false);
   const [mouseLocked, setMouseLocked] = useState(false);
   const [keyboardOn, setKeyboardOn] = useState(false);
+  const [sendKeyPreset, setSendKeyPreset] = useState(ML_SEND_KEY_PRESETS[0].value);
+  const [customVk, setCustomVk] = useState('');
+  const [sendKeyHint, setSendKeyHint] = useState('');
 
   bitrateRef.current = bitrate;
   fpsRef.current = fps;
@@ -707,7 +881,8 @@ export function MoonlightSession({
       resizeTimer.current = setTimeout(() => {
         if (resolutionRef.current !== ML_RESOLUTION_AUTO) return;
         if (statusRef.current !== 'streaming') return;
-        const next = measureClientArea(surfaceRef.current);
+        // Prefer the iframe content box once mounted; else the Gatwy surface.
+        const next = measureClientArea(iframeRef.current ?? surfaceRef.current);
         const prev = activeSizeRef.current;
         if (prev && !sizesDiffer(prev, next)) return;
         void relaunchStream({
@@ -784,11 +959,47 @@ export function MoonlightSession({
     setKeyboardOn(!!helpers.isKeyboardVisible?.());
   }, []);
 
-  const handleSendKeycode = useCallback(() => {
+  const handleSendKey = useCallback(() => {
     injectIframeChrome(iframeRef.current);
-    getGatwyMlw(iframeRef.current)?.sendKeycode?.();
-    setPanelOpen(false);
-  }, []);
+    const helpers = getGatwyMlw(iframeRef.current);
+    if (!helpers?.sendKey) {
+      setSendKeyHint('Stream input not ready');
+      return;
+    }
+    const preset = ML_SEND_KEY_PRESETS.find((p) => p.value === sendKeyPreset);
+    let keys: number[] = preset?.keys ?? [];
+    if (!preset || preset.value === 'custom' || keys.length === 0) {
+      const parsed = parseCustomVk(customVk);
+      if (parsed == null) {
+        setSendKeyHint('Enter a VK as hex (0x1B) or decimal');
+        return;
+      }
+      keys = [parsed];
+    }
+    const ok = helpers.sendKey(keys);
+    setSendKeyHint(ok ? 'Sent' : 'Send failed');
+    if (ok) {
+      // Brief confirmation, then clear so the panel stays usable.
+      window.setTimeout(() => setSendKeyHint((h) => (h === 'Sent' ? '' : h)), 1200);
+    }
+  }, [customVk, sendKeyPreset]);
+
+  /** After iframe layout, correct Auto size if surface measure drifted (gutters / late layout). */
+  const maybeCorrectAutoSize = useCallback(() => {
+    if (resolutionRef.current !== ML_RESOLUTION_AUTO) return;
+    if (statusRef.current !== 'streaming') return;
+    const surface = surfaceRef.current;
+    const iframe = iframeRef.current;
+    // Prefer the iframe’s laid-out box once present; else the Gatwy surface behind it.
+    const next = measureClientArea(iframe ?? surface);
+    const prev = activeSizeRef.current;
+    if (prev && !sizesDiffer(prev, next, 2)) return;
+    void relaunchStream({
+      width: next.width,
+      height: next.height,
+      resolution: ML_RESOLUTION_AUTO,
+    });
+  }, [relaunchStream]);
 
   // Keep Lock mouse label in sync with iframe pointer-lock state.
   useEffect(() => {
@@ -814,7 +1025,7 @@ export function MoonlightSession({
     void persistSettings({ resolution: next });
     if (status !== 'streaming' || !streamBasePathRef.current) return;
     const area = next === ML_RESOLUTION_AUTO
-      ? measureClientArea(surfaceRef.current)
+      ? measureClientArea(iframeRef.current ?? surfaceRef.current)
       : resolutionToMlwVideoSize(next, null).videoSizeCustom;
     void relaunchStream({
       width: area.width,
@@ -874,8 +1085,8 @@ export function MoonlightSession({
     signal: AbortSignal,
     prefs: { bitrateKbps: number; fps: number; resolution: string },
   ) => {
-    // Wait a frame so the session surface has layout before measuring Auto size.
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    // Wait two frames so the session surface has layout before measuring Auto size.
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     let clientArea = measureClientArea(surfaceRef.current);
     if (clientArea.width <= 640 && clientArea.height <= 360) {
@@ -1018,11 +1229,15 @@ export function MoonlightSession({
             ref={iframeRef}
             title={`Moonlight ${connectionName}`}
             src={streamUrl}
-            className="absolute inset-0 w-full h-full border-0"
+            className="absolute inset-0 w-full h-full border-0 overflow-hidden"
+            style={{ overflow: 'hidden' }}
+            scrolling="no"
             allow="fullscreen; autoplay; clipboard-read; clipboard-write; gamepad"
             onLoad={() => {
               injectIframeChrome(iframeRef.current);
               syncIframeInputState();
+              // Correct Auto WxH once the iframe has a real content box.
+              maybeCorrectAutoSize();
               // Restore focus into the stream surface for keyboard input
               try { iframeRef.current?.contentWindow?.focus(); } catch { /* ignore */ }
             }}
@@ -1177,7 +1392,7 @@ export function MoonlightSession({
             />
           </label>
           <p className="text-[10px] text-text-secondary leading-relaxed">
-            Auto matches the pane size (preferred — crisp fill). Fixed presets in a differently-shaped pane may stretch slightly. Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
+            Auto measures this pane exactly and asks Sunshine for that WxH (preferred — no letterbox). Fixed presets in a differently-shaped pane may stretch slightly. Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
           </p>
         </div>
 
@@ -1249,19 +1464,54 @@ export function MoonlightSession({
           {statsOn ? 'Hide stats' : 'Show stats'}
         </button>
 
-        <button
-          type="button"
-          onClick={handleSendKeycode}
-          disabled={status !== 'streaming'}
-          className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-hover text-text-primary text-sm transition-colors text-left w-full disabled:opacity-40 disabled:pointer-events-none"
-          title="Send a special keycode to the host"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M4 7h16v10H4z" />
-            <path d="M8 11h.01M12 11h.01M16 11h.01M9 15h6" />
-          </svg>
-          Send keycode
-        </button>
+        <div className="px-2 py-2 border-t border-border mt-0.5 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 text-text-primary text-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+              <path d="M4 7h16v10H4z" />
+              <path d="M8 11h.01M12 11h.01M16 11h.01M9 15h6" />
+            </svg>
+            <span>Send key</span>
+          </div>
+          <select
+            value={sendKeyPreset}
+            onChange={(e) => {
+              setSendKeyPreset(e.target.value);
+              setSendKeyHint('');
+            }}
+            disabled={status !== 'streaming'}
+            className="w-full bg-surface border border-border rounded-md px-1.5 py-1 text-[11px] text-text-primary focus:outline-none focus:border-accent disabled:opacity-40"
+            title="Send a key to the host (Gatwy-native — does not open moonlight-web)"
+          >
+            {ML_SEND_KEY_PRESETS.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+          {sendKeyPreset === 'custom' && (
+            <input
+              type="text"
+              value={customVk}
+              onChange={(e) => {
+                setCustomVk(e.target.value);
+                setSendKeyHint('');
+              }}
+              disabled={status !== 'streaming'}
+              placeholder="0x1B or 27"
+              className="w-full bg-surface border border-border rounded-md px-1.5 py-1 text-[11px] text-text-primary tabular-nums focus:outline-none focus:border-accent disabled:opacity-40"
+              title="Windows virtual-key code (hex or decimal)"
+            />
+          )}
+          <button
+            type="button"
+            onClick={handleSendKey}
+            disabled={status !== 'streaming'}
+            className="w-full py-1.5 px-2 text-[11px] bg-accent/90 hover:bg-accent text-white rounded-md font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
+          >
+            Send
+          </button>
+          {sendKeyHint && (
+            <p className="text-[10px] text-text-secondary leading-relaxed">{sendKeyHint}</p>
+          )}
+        </div>
 
         <button
           type="button"
