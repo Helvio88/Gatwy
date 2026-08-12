@@ -52,12 +52,12 @@ export function VncSession({ connectionId, connectionName, isActive, onStatusCha
 
     async function connect() {
       try {
-        // Fetch password from session endpoint
+        // Fetch credentials from session endpoint (username required for macOS ARD / type 30)
         const res = await fetch(`/api/v1/connections/${connectionId}/session`, {
           credentials: 'include',
         });
         if (!res.ok) throw new Error('Failed to fetch connection credentials');
-        const info: { password?: string } = await res.json();
+        const info: { username?: string; password?: string } = await res.json();
         if (cancelled) return;
 
         // noVNC 1.7.0 ships as pure ESM so a direct dynamic import works
@@ -98,8 +98,16 @@ export function VncSession({ connectionId, connectionName, isActive, onStatusCha
           get readyState(): number { return nativeWs.readyState; },
         };
 
+        // Always pass username + password when available. macOS Screen Sharing
+        // prefers Apple ARD auth (security type 30), which requires both. If we
+        // only send password, noVNC fires credentialsrequired and waits forever
+        // because Gatwy never handled that event (infinite "Connecting...").
+        const username = info.username ?? '';
+        const password = info.password ?? '';
+        const hasCreds = Boolean(username || password);
+
         rfb = new RFB(container, channel as unknown as string, {
-          credentials: info.password ? { password: info.password } : undefined,
+          credentials: hasCreds ? { username, password } : undefined,
         });
 
         rfb.scaleViewport = true;
@@ -136,6 +144,31 @@ export function VncSession({ connectionId, connectionName, isActive, onStatusCha
         rfb.addEventListener('securityfailure', () => {
           if (!cancelled && !sessionRevoked) {
             setErrorMsg('VNC authentication failed');
+            setAndNotify('disconnected');
+          }
+        });
+
+        // noVNC pauses the handshake until sendCredentials() is called.
+        // ARD / Unix logon / RA2 can request username+password mid-handshake.
+        rfb.addEventListener('credentialsrequired', (e: Event) => {
+          if (cancelled || sessionRevoked) return;
+          const types = (e as CustomEvent<{ types?: string[] }>).detail?.types ?? [];
+          if (types.includes('username') && !username) {
+            setErrorMsg('VNC requires a username (e.g. macOS Screen Sharing / ARD). Set it on the connection and reconnect.');
+            setAndNotify('disconnected');
+            try { rfb?.disconnect(); } catch { /* ignore */ }
+            return;
+          }
+          if (types.includes('password') && !password) {
+            setErrorMsg('VNC requires a password. Set it on the connection and reconnect.');
+            setAndNotify('disconnected');
+            try { rfb?.disconnect(); } catch { /* ignore */ }
+            return;
+          }
+          try {
+            rfb?.sendCredentials({ username, password });
+          } catch {
+            setErrorMsg('Failed to supply VNC credentials');
             setAndNotify('disconnected');
           }
         });
