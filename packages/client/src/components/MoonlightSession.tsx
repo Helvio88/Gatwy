@@ -74,15 +74,35 @@ const MLW_CHROME_STYLE = `
   pointer-events: none !important;
 }
 
-/* Neutralize cyan neon Connecting splash (ConnectionInfoModal / host-loading). */
-html.stream {
-  --accent-cyan: rgba(255, 255, 255, 0.4);
-  --accent-cyan-2: rgba(255, 255, 255, 0.5);
-  --accent-cyan-light: rgba(255, 255, 255, 0.6);
-  --glow-cyan: none;
-  --glow-cyan-bright: none;
-  --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --text-1: rgba(255, 255, 255, 0.65);
+/* Neutralize cyan neon Connecting splash (ConnectionInfoModal / host-loading).
+ * !important is required — standard.css hardcodes #00d4ff / #00f5ff / #00ffff. */
+html.stream,
+html.stream body,
+body.stream {
+  --accent-cyan: rgba(255, 255, 255, 0.4) !important;
+  --accent-cyan-2: rgba(255, 255, 255, 0.5) !important;
+  --accent-cyan-light: rgba(255, 255, 255, 0.6) !important;
+  --glow-cyan: none !important;
+  --glow-cyan-bright: none !important;
+  --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+  --text-1: rgba(255, 255, 255, 0.65) !important;
+  --bg-0: #000000 !important;
+  --bg-1: #050505 !important;
+  --bg-2: #000000 !important;
+  --bg-3: #0a0a0a !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  text-shadow: none !important;
+  background: #000 !important;
+  background-image: none !important;
+}
+html.stream body::before,
+body.stream::before {
+  background: #000 !important;
+  background-image: none !important;
+  background-color: #000 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  opacity: 1 !important;
 }
 .modal-background:not(.modal-disabled):has(.modal-video-connect),
 .modal-background:not(.modal-disabled):has(.host-loading-overlay) {
@@ -111,13 +131,16 @@ html.stream {
   align-items: center !important;
   gap: 8px !important;
   min-height: 0 !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  text-shadow: none !important;
 }
 .modal-video-connect > p,
-.modal-video-connect .textlike {
+.modal-video-connect .textlike,
+.modal-video-connect p {
   font-size: 12px !important;
   font-weight: 400 !important;
   line-height: 1.35 !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
   text-shadow: none !important;
   text-align: center !important;
   margin: 0 !important;
@@ -189,7 +212,7 @@ html.stream {
 }
 .host-loading-text {
   font-size: 12px !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
   text-shadow: none !important;
 }
 .host-loading-cancel {
@@ -206,6 +229,34 @@ html.stream {
 .host-loading-cancel:focus {
   transform: none !important;
   background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+}
+
+/* Override hardcoded cyan in MLW standard.css on connect/reconnect chrome. */
+html.stream .modal-video-connect,
+html.stream .modal-video-connect > p,
+html.stream .modal-video-connect p,
+html.stream .modal-video-connect .textlike,
+html.stream .textlike,
+html.stream .host-loading-text,
+html.stream .modal-background:not(.modal-disabled) .modal-content,
+html.stream .modal-background:not(.modal-disabled) .modal-content p,
+html.stream .modal-background:not(.modal-disabled) .modal-content span {
+  color: rgba(255, 255, 255, 0.7) !important;
+  text-shadow: none !important;
+}
+html.stream .modal-video-connect button,
+html.stream .modal-video-connect .modal-video-connect-options button,
+html.stream .host-loading-cancel {
+  color: rgba(255, 255, 255, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+html.stream .host-element.connecting::before,
+html.stream .host-loading-spinner {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  border-top-color: rgba(255, 255, 255, 0.55) !important;
   box-shadow: none !important;
 }
 
@@ -344,6 +395,13 @@ canvas.video-stream {
   box-sizing: border-box !important;
   overflow: hidden !important;
   margin: 0 !important;
+}
+
+/* FS safety net: residual letterbox after Auto relaunch. Windowed stays contain. */
+html.gatwy-fullscreen .video-stream,
+html.gatwy-fullscreen video.video-stream,
+html.gatwy-fullscreen canvas.video-stream {
+  object-fit: fill !important;
 }
 `;
 
@@ -579,6 +637,40 @@ function measureClientArea(el: HTMLElement | null): { width: number; height: num
   return snapStreamSize(width, height);
 }
 
+/** True when the Gatwy session (or a descendant) owns the Fullscreen API element. */
+function sessionIsFullscreen(session: HTMLElement | null): boolean {
+  const fsEl = document.fullscreenElement;
+  return !!session && !!fsEl && (fsEl === session || session.contains(fsEl));
+}
+
+/**
+ * Prefer the fullscreen element (sessionRef / document.fullscreenElement) when
+ * ours is fullscreen — iframe/surface boxes can still be the pre-FS size.
+ * Fall back to iframe, then the Gatwy surface.
+ */
+function measureStreamPane(opts: {
+  session: HTMLElement | null;
+  iframe: HTMLElement | null;
+  surface: HTMLElement | null;
+}): { width: number; height: number } {
+  const { session, iframe, surface } = opts;
+  const fsEl = document.fullscreenElement;
+  if (session && fsEl && (fsEl === session || session.contains(fsEl))) {
+    const target = fsEl instanceof HTMLElement ? fsEl : session;
+    return measureClientArea(target);
+  }
+  return measureClientArea(iframe ?? surface);
+}
+
+/** Parent-toggled class so baked/runtime CSS can use object-fit:fill only in FS. */
+function syncIframeFullscreenClass(iframe: HTMLIFrameElement | null, fullscreen: boolean): void {
+  try {
+    const html = iframe?.contentDocument?.documentElement;
+    if (!html) return;
+    html.classList.toggle('gatwy-fullscreen', fullscreen);
+  } catch { /* cross-origin or not ready */ }
+}
+
 /** Common VK chords for the Gatwy-native Send key UI (Windows virtual-key codes). */
 const ML_SEND_KEY_PRESETS: { value: string; label: string; keys: number[] }[] = [
   { value: 'escape', label: 'Escape', keys: [0x1b] },
@@ -660,7 +752,7 @@ function getGatwyMlw(iframe: HTMLIFrameElement | null): GatwyMlwHelpers | null {
   }
 }
 
-function injectIframeChrome(iframe: HTMLIFrameElement | null): void {
+function injectIframeChrome(iframe: HTMLIFrameElement | null, session?: HTMLElement | null): void {
   try {
     const doc = iframe?.contentDocument;
     if (!doc?.head) return;
@@ -683,6 +775,9 @@ function injectIframeChrome(iframe: HTMLIFrameElement | null): void {
       script.textContent = MLW_GATWY_HELPER_SCRIPT;
       doc.documentElement.appendChild(script);
     }
+    const oursFs = sessionIsFullscreen(session ?? null)
+      || (!!document.fullscreenElement && !!iframe && document.fullscreenElement.contains(iframe));
+    syncIframeFullscreenClass(iframe, oursFs);
     // Ensure ScreenKeyboard textarea is outside the hidden sidebar.
     getGatwyMlw(iframe)?.reparentHiddenKeyboard?.();
   } catch { /* cross-origin or not ready */ }
@@ -888,8 +983,9 @@ export function MoonlightSession({
 
   /**
    * After enter/exit fullscreen, wait for layout then (Auto only) relaunch so
-   * Sunshine’s intrinsic size matches the new pane — contain then shows no bars.
-   * ResizeObserver alone can measure the pre-transition box and leave letterboxing.
+   * Sunshine’s intrinsic size matches the new pane. Measure the fullscreen
+   * element (not a stale iframe box). Longer settle + retries if size is still
+   * drifting or resizingRef is locked. Always toggle html.gatwy-fullscreen.
    */
   useEffect(() => {
     let raf1 = 0;
@@ -908,11 +1004,14 @@ export function MoonlightSession({
 
     const remeasureAutoAfterFullscreen = () => {
       const session = sessionRef.current;
-      const fsEl = document.fullscreenElement;
-      const oursNow = !!session && !!fsEl && (fsEl === session || session.contains(fsEl));
-      const oursExiting = !fsEl && wasOursFullscreen;
+      const oursNow = sessionIsFullscreen(session);
+      const oursExiting = !document.fullscreenElement && wasOursFullscreen;
       wasOursFullscreen = oursNow;
       setIsFullscreen(oursNow);
+
+      // Class toggle is independent of Auto — FS object-fit:fill safety net.
+      injectIframeChrome(iframeRef.current, session);
+      syncIframeFullscreenClass(iframeRef.current, oursNow);
 
       // Enter (ours) or exit (we were fullscreen) — ignore other elements' fullscreen.
       if (!oursNow && !oursExiting) return;
@@ -928,27 +1027,40 @@ export function MoonlightSession({
       const attempt = (retriesLeft: number) => {
         if (resolutionRef.current !== ML_RESOLUTION_AUTO) return;
         if (statusRef.current !== 'streaming') return;
-        const next = measureClientArea(iframeRef.current ?? surfaceRef.current);
+        const next = measureStreamPane({
+          session: sessionRef.current,
+          iframe: iframeRef.current,
+          surface: surfaceRef.current,
+        });
         const prev = activeSizeRef.current;
-        if (prev && !sizesDiffer(prev, next, 2)) return;
+        const differs = !prev || sizesDiffer(prev, next, 2);
         // Another relaunch in flight (e.g. ResizeObserver) — retry after the lock.
         if (resizingRef.current) {
           if (retriesLeft <= 0) return;
           settleTimer = window.setTimeout(() => attempt(retriesLeft - 1), 560);
           return;
         }
-        void relaunchStream({
-          width: next.width,
-          height: next.height,
-          resolution: ML_RESOLUTION_AUTO,
-        });
+        if (differs) {
+          void relaunchStream({
+            width: next.width,
+            height: next.height,
+            resolution: ML_RESOLUTION_AUTO,
+          });
+        }
+        // Size can still drift after FS layout / relaunch — remeasure a couple times.
+        if (retriesLeft > 0) {
+          settleTimer = window.setTimeout(
+            () => attempt(retriesLeft - 1),
+            differs ? 560 : 180,
+          );
+        }
       };
 
       clearPending();
       raf1 = requestAnimationFrame(() => {
         raf2 = requestAnimationFrame(() => {
-          // One short settle after paint so clientWidth matches the fullscreen pane.
-          settleTimer = window.setTimeout(() => attempt(2), 50);
+          // 2× rAF + ~200ms so clientWidth matches the fullscreen pane.
+          settleTimer = window.setTimeout(() => attempt(3), 200);
         });
       });
     };
@@ -972,8 +1084,12 @@ export function MoonlightSession({
       resizeTimer.current = setTimeout(() => {
         if (resolutionRef.current !== ML_RESOLUTION_AUTO) return;
         if (statusRef.current !== 'streaming') return;
-        // Prefer the iframe content box once mounted; else the Gatwy surface.
-        const next = measureClientArea(iframeRef.current ?? surfaceRef.current);
+        // Prefer FS element when ours is fullscreen; else iframe / surface.
+        const next = measureStreamPane({
+          session: sessionRef.current,
+          iframe: iframeRef.current,
+          surface: surfaceRef.current,
+        });
         const prev = activeSizeRef.current;
         if (prev && !sizesDiffer(prev, next)) return;
         void relaunchStream({
@@ -1005,7 +1121,7 @@ export function MoonlightSession({
   }, [connectionId]);
 
   const handleToggleStats = useCallback(() => {
-    injectIframeChrome(iframeRef.current);
+    injectIframeChrome(iframeRef.current, sessionRef.current);
     if (toggleIframeStats(iframeRef.current)) {
       setStatsOn((v) => !v);
     }
@@ -1031,7 +1147,7 @@ export function MoonlightSession({
     pointerLockCleanupRef.current?.();
     pointerLockCleanupRef.current = null;
     if (!iframe) return;
-    injectIframeChrome(iframe);
+    injectIframeChrome(iframe, sessionRef.current);
     const doc = iframe.contentDocument;
     if (!doc) return;
     const onChange = () => syncIframeInputState();
@@ -1047,7 +1163,7 @@ export function MoonlightSession({
   }, [syncIframeInputState]);
 
   const handleLockMouse = useCallback(() => {
-    injectIframeChrome(iframeRef.current);
+    injectIframeChrome(iframeRef.current, sessionRef.current);
     const helpers = getGatwyMlw(iframeRef.current);
     if (!helpers) return;
     if (helpers.isPointerLocked?.() || iframeRef.current?.contentDocument?.pointerLockElement) {
@@ -1070,14 +1186,14 @@ export function MoonlightSession({
   }, [syncIframeInputState]);
 
   const handleToggleKeyboard = useCallback(() => {
-    injectIframeChrome(iframeRef.current);
+    injectIframeChrome(iframeRef.current, sessionRef.current);
     const helpers = getGatwyMlw(iframeRef.current);
     if (!helpers?.toggleKeyboard?.()) return;
     setKeyboardOn(!!helpers.isKeyboardVisible?.());
   }, []);
 
   const handleSendKey = useCallback(() => {
-    injectIframeChrome(iframeRef.current);
+    injectIframeChrome(iframeRef.current, sessionRef.current);
     const helpers = getGatwyMlw(iframeRef.current);
     if (!helpers?.sendKey) {
       setSendKeyHint('Stream input not ready');
@@ -1105,10 +1221,11 @@ export function MoonlightSession({
   const maybeCorrectAutoSize = useCallback(() => {
     if (resolutionRef.current !== ML_RESOLUTION_AUTO) return;
     if (statusRef.current !== 'streaming') return;
-    const surface = surfaceRef.current;
-    const iframe = iframeRef.current;
-    // Prefer the iframe’s laid-out box once present; else the Gatwy surface behind it.
-    const next = measureClientArea(iframe ?? surface);
+    const next = measureStreamPane({
+      session: sessionRef.current,
+      iframe: iframeRef.current,
+      surface: surfaceRef.current,
+    });
     const prev = activeSizeRef.current;
     if (prev && !sizesDiffer(prev, next, 2)) return;
     void relaunchStream({
@@ -1158,7 +1275,11 @@ export function MoonlightSession({
     void persistSettings({ resolution: next });
     if (status !== 'streaming' || !streamBasePathRef.current) return;
     const area = next === ML_RESOLUTION_AUTO
-      ? measureClientArea(iframeRef.current ?? surfaceRef.current)
+      ? measureStreamPane({
+          session: sessionRef.current,
+          iframe: iframeRef.current,
+          surface: surfaceRef.current,
+        })
       : resolutionToMlwVideoSize(next, null).videoSizeCustom;
     void relaunchStream({
       width: area.width,
@@ -1221,11 +1342,19 @@ export function MoonlightSession({
     // Wait two frames so the session surface has layout before measuring Auto size.
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-    let clientArea = measureClientArea(surfaceRef.current);
+    let clientArea = measureStreamPane({
+      session: sessionRef.current,
+      iframe: iframeRef.current,
+      surface: surfaceRef.current,
+    });
     if (clientArea.width <= 640 && clientArea.height <= 360) {
       await new Promise((r) => setTimeout(r, 50));
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-      clientArea = measureClientArea(surfaceRef.current);
+      clientArea = measureStreamPane({
+        session: sessionRef.current,
+        iframe: iframeRef.current,
+        surface: surfaceRef.current,
+      });
     }
     const launchSize = applyMlwSettings(prefs.bitrateKbps, prefs.fps, prefs.resolution, clientArea);
 
@@ -1367,7 +1496,7 @@ export function MoonlightSession({
             scrolling="no"
             allow="fullscreen; autoplay; clipboard-read; clipboard-write; gamepad"
             onLoad={() => {
-              injectIframeChrome(iframeRef.current);
+              injectIframeChrome(iframeRef.current, sessionRef.current);
               // Attach pointerlock listeners after load (survives streamEpoch remounts).
               bindPointerLockSync(iframeRef.current);
               syncIframeInputState();
@@ -1527,7 +1656,7 @@ export function MoonlightSession({
             />
           </label>
           <p className="text-[10px] text-text-secondary leading-relaxed">
-            Auto measures this pane exactly and asks Sunshine for that WxH (preferred — no letterbox). Fixed presets in a differently-shaped pane may stretch slightly. Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
+            Auto measures this pane exactly and asks Sunshine for that WxH. Fullscreen Auto fills the canvas; windowed smaller presets stay centered. Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
           </p>
         </div>
 
