@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.5
+
+### Packaging
+
+- Docker moonlight-web static patch (`patch-static.sh`) is POSIX `/bin/sh` + `sed`/`node` only — no bash/python — so `node:22-trixie-slim` builds no longer fail with exit 127.
+
 ## 0.19.4
 
 ### Moonlight / Sunshine
