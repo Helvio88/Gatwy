@@ -321,25 +321,26 @@ canvas.video-stream {
   border-radius: 10px !important;
 }
 
-/* Fill iframe pane — inset sizing (not 100%) so fill can’t exceed viewport. */
+/* Contain + center: smaller streams letterbox/pillarbox; Auto still fills. */
 .video-stream,
 video.video-stream,
 canvas.video-stream {
   position: fixed !important;
-  inset: 0 !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  transform: none !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  inset: auto !important;
+  transform: translate(-50%, -50%) !important;
   width: auto !important;
   height: auto !important;
-  max-width: none !important;
-  max-height: none !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
-  object-fit: fill !important;
+  object-fit: contain !important;
   box-sizing: border-box !important;
+  overflow: hidden !important;
 }
 `;
 
@@ -432,6 +433,22 @@ const MLW_GATWY_HELPER_SCRIPT = `
     }
   }
 
+  function notifyPointerLock() {
+    var locked = !!document.pointerLockElement;
+    try {
+      window.parent.postMessage({
+        source: 'gatwy-mlw',
+        type: 'pointerlock',
+        locked: locked
+      }, '*');
+    } catch (e) {}
+  }
+
+  // Belt-and-suspenders for ESC / OS unlock — parent may miss contentDocument
+  // listeners if they were attached before iframe navigation finished.
+  document.addEventListener('pointerlockchange', notifyPointerLock);
+  document.addEventListener('pointerlockerror', notifyPointerLock);
+
   window.__gatwyMlw = {
     reparentHiddenKeyboard: reparentHiddenKeyboard,
     armPointerLock: armPointerLock,
@@ -443,9 +460,9 @@ const MLW_GATWY_HELPER_SCRIPT = `
     unlockMouse: function() {
       var app = getApp();
       if (app && typeof app.exitPointerLock === 'function') {
-        try { app.exitPointerLock(); return true; } catch (e) { return false; }
+        try { app.exitPointerLock(); notifyPointerLock(); return true; } catch (e) { return false; }
       }
-      try { document.exitPointerLock(); return true; } catch (e) { return false; }
+      try { document.exitPointerLock(); notifyPointerLock(); return true; } catch (e) { return false; }
     },
     isPointerLocked: function() {
       return !!document.pointerLockElement;
@@ -719,6 +736,8 @@ export function MoonlightSession({
   const sessionRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  /** Cleanup for contentDocument pointer-lock listeners (re-bound on iframe load). */
+  const pointerLockCleanupRef = useRef<(() => void) | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const autoCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -921,19 +940,45 @@ export function MoonlightSession({
   }, []);
 
   const syncIframeInputState = useCallback(() => {
-    const helpers = getGatwyMlw(iframeRef.current);
-    if (!helpers) return;
+    const iframe = iframeRef.current;
+    const helpers = getGatwyMlw(iframe);
     try {
-      setMouseLocked(!!helpers.isPointerLocked?.());
-      setKeyboardOn(!!helpers.isKeyboardVisible?.());
+      const docLocked = !!iframe?.contentDocument?.pointerLockElement;
+      const helperLocked = !!helpers?.isPointerLocked?.();
+      setMouseLocked(docLocked || helperLocked);
+      if (helpers) setKeyboardOn(!!helpers.isKeyboardVisible?.());
     } catch { /* ignore */ }
   }, []);
+
+  /**
+   * Bind pointer-lock listeners on the iframe contentDocument after load.
+   * Attaching in a status effect is too early / lost on navigation — ESC then
+   * never flips the Gatwy panel label back to "Lock mouse".
+   */
+  const bindPointerLockSync = useCallback((iframe: HTMLIFrameElement | null) => {
+    pointerLockCleanupRef.current?.();
+    pointerLockCleanupRef.current = null;
+    if (!iframe) return;
+    injectIframeChrome(iframe);
+    const doc = iframe.contentDocument;
+    if (!doc) return;
+    const onChange = () => syncIframeInputState();
+    doc.addEventListener('pointerlockchange', onChange);
+    doc.addEventListener('pointerlockerror', onChange);
+    syncIframeInputState();
+    pointerLockCleanupRef.current = () => {
+      try {
+        doc.removeEventListener('pointerlockchange', onChange);
+        doc.removeEventListener('pointerlockerror', onChange);
+      } catch { /* document already gone */ }
+    };
+  }, [syncIframeInputState]);
 
   const handleLockMouse = useCallback(() => {
     injectIframeChrome(iframeRef.current);
     const helpers = getGatwyMlw(iframeRef.current);
     if (!helpers) return;
-    if (helpers.isPointerLocked?.()) {
+    if (helpers.isPointerLocked?.() || iframeRef.current?.contentDocument?.pointerLockElement) {
       helpers.unlockMouse?.();
       setMouseLocked(false);
       return;
@@ -948,7 +993,7 @@ export function MoonlightSession({
     const t = setInterval(() => {
       syncIframeInputState();
       n += 1;
-      if (n >= 20) clearInterval(t);
+      if (n >= 40) clearInterval(t);
     }, 150);
   }, [syncIframeInputState]);
 
@@ -1001,21 +1046,37 @@ export function MoonlightSession({
     });
   }, [relaunchStream]);
 
-  // Keep Lock mouse label in sync with iframe pointer-lock state.
+  // Reset lock/keyboard UI when not streaming; real listeners bind on iframe onLoad.
   useEffect(() => {
     if (status !== 'streaming') {
       setMouseLocked(false);
       setKeyboardOn(false);
-      return;
+      pointerLockCleanupRef.current?.();
+      pointerLockCleanupRef.current = null;
     }
-    const iframe = iframeRef.current;
-    const doc = iframe?.contentDocument;
-    if (!doc) return;
-    const onChange = () => syncIframeInputState();
-    doc.addEventListener('pointerlockchange', onChange);
-    syncIframeInputState();
-    return () => doc.removeEventListener('pointerlockchange', onChange);
-  }, [status, streamUrl, streamEpoch, syncIframeInputState]);
+  }, [status]);
+
+  // __gatwyMlw postMessage bridge (ESC / OS unlock when contentDocument listener is flaky).
+  useEffect(() => {
+    const onMessage = (ev: MessageEvent) => {
+      const data = ev.data as { source?: string; type?: string; locked?: boolean } | null;
+      if (!data || data.source !== 'gatwy-mlw' || data.type !== 'pointerlock') return;
+      if (ev.source !== iframeRef.current?.contentWindow) return;
+      setMouseLocked(!!data.locked);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // While UI thinks locked, light-poll isPointerLocked so ESC flips the label without
+  // requiring the panel to reopen.
+  useEffect(() => {
+    if (!mouseLocked || status !== 'streaming') return;
+    const id = window.setInterval(() => {
+      syncIframeInputState();
+    }, 300);
+    return () => window.clearInterval(id);
+  }, [mouseLocked, status, syncIframeInputState]);
 
   const handleResolutionChange = useCallback((value: string) => {
     const next = normalizeMlResolution(value);
@@ -1235,6 +1296,8 @@ export function MoonlightSession({
             allow="fullscreen; autoplay; clipboard-read; clipboard-write; gamepad"
             onLoad={() => {
               injectIframeChrome(iframeRef.current);
+              // Attach pointerlock listeners after load (survives streamEpoch remounts).
+              bindPointerLockSync(iframeRef.current);
               syncIframeInputState();
               // Correct Auto WxH once the iframe has a real content box.
               maybeCorrectAutoSize();
