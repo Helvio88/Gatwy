@@ -1,9 +1,21 @@
 services:
   gatwy:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: gatwy
     restart: unless-stopped
     ports:
       - "7443:7443"
+      # Optional: expose WebRTC UDP range if you prefer WebRTC over the
+      # default WebSocket transport for Moonlight streams.
+      # - "40000-40100:40000-40100/udp"
     volumes:
       - ./data:/app/data
+    environment:
+      # Recommended in production — generate with: openssl rand -hex 32
+      # - GATWY_ENCRYPTION_KEY=
+      # Advertise this host's LAN IP for WebRTC ICE (optional)
+      # - MOONLIGHT_WEBRTC_NAT_1TO1_HOST=192.168.1.10
+      - MOONLIGHT_WEBRTC_PORT_MIN=40000
+      - MOONLIGHT_WEBRTC_PORT_MAX=40100

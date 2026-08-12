@@ -244,7 +244,7 @@ router.post('/import', (req: Request, res: Response) => {
 
   for (const c of (connections ?? [])) {
     if (!c.name || !c.protocol || !c.host || !c.port) continue;
-    if (!['ssh', 'rdp', 'smb', 'vnc', 'sftp', 'ftp', 'telnet', 'postgres', 'mysql'].includes(c.protocol)) continue;
+    if (!['ssh', 'rdp', 'smb', 'vnc', 'moonlight', 'sftp', 'ftp', 'telnet', 'postgres', 'mysql'].includes(c.protocol)) continue;
     const newId = uuid();
     const newGroupId = c.groupId ? (groupIdMap.get(c.groupId) ?? null) : null;
     execute(
@@ -281,7 +281,7 @@ router.post('/', (req: Request, res: Response) => {
     return;
   }
 
-  if (!['ssh', 'rdp', 'smb', 'vnc', 'sftp', 'ftp', 'telnet', 'postgres', 'mysql'].includes(protocol)) {
+  if (!['ssh', 'rdp', 'smb', 'vnc', 'moonlight', 'sftp', 'ftp', 'telnet', 'postgres', 'mysql'].includes(protocol)) {
     res.status(400).json({ error: 'Invalid protocol' });
     return;
   }
@@ -349,10 +349,11 @@ router.put('/:id', (req: Request, res: Response) => {
     group_id: string | null;
     user_id: string;
     shared: number;
+    extra_config_json: string | null;
   }
 
   const existing = queryOne<ExistingConnectionRow>(
-    'SELECT id, name, protocol, host, port, username, group_id, user_id, shared FROM connections WHERE id = ?',
+    'SELECT id, name, protocol, host, port, username, group_id, user_id, shared, extra_config_json FROM connections WHERE id = ?',
     [id],
   );
   if (!existing) {
@@ -396,7 +397,22 @@ router.put('/:id', (req: Request, res: Response) => {
   if (groupId !== undefined) { updates.push('group_id = ?'); params.push(groupId || null); }
   if (shared !== undefined) { updates.push('shared = ?'); params.push(shared ? 1 : 0); }
   if (tunnels !== undefined) { updates.push('tunnels_json = ?'); params.push(tunnels ? JSON.stringify(tunnels) : null); }
-  if (extraConfig !== undefined) { updates.push('extra_config_json = ?'); params.push(extraConfig ? JSON.stringify(extraConfig) : null); }
+  if (extraConfig !== undefined) {
+    let nextExtra = extraConfig;
+    // Preserve Moonlight pairing metadata (mlHostId / paired) across edits.
+    if (existing.protocol === 'moonlight' || protocol === 'moonlight') {
+      let prev: Record<string, unknown> = {};
+      try {
+        if (existing.extra_config_json) prev = JSON.parse(existing.extra_config_json) as Record<string, unknown>;
+      } catch { /* ignore */ }
+      nextExtra = {
+        ...prev,
+        ...(extraConfig && typeof extraConfig === 'object' ? extraConfig as Record<string, unknown> : {}),
+      };
+    }
+    updates.push('extra_config_json = ?');
+    params.push(nextExtra ? JSON.stringify(nextExtra) : null);
+  }
   if (tags !== undefined) { updates.push('tags = ?'); params.push(Array.isArray(tags) ? JSON.stringify(tags.map((t: string) => t.trim().toLowerCase()).filter(Boolean)) : null); }
   if (skipCertValidation !== undefined) { updates.push('skip_cert_validation = ?'); params.push(skipCertValidation ? 1 : 0); }
 

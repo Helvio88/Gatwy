@@ -5,4 +5,11 @@ set -e
 # host) is writable by the node user before dropping privileges.
 chown -R node:node /app/data
 
-exec su-exec node "$@"
+# Prefer gosu (Debian) with a fallback to su-exec (Alpine) for local/dev images.
+if command -v gosu >/dev/null 2>&1; then
+  exec gosu node "$@"
+elif command -v su-exec >/dev/null 2>&1; then
+  exec su-exec node "$@"
+else
+  exec runuser -u node -- "$@"
+fi

@@ -1,20 +1,15 @@
 <div align="center">
 
 # Gatwy
-### ![alt text](https://github.com/kotoxie/Gatwy/blob/master/packages/client/public/favicon.png?raw=true) 
+### ![alt text](https://github.com/kotoxie/Gatwy/blob/master/packages/client/public/favicon.png?raw=true)
 
 
-### Self-host your entire remote access stack in one Docker container — 9 protocols, one interface: RDP, SSH, VNC, Telnet, SMB, SFTP, FTP, MySQL & PostgreSQL.
+### Self-host your entire remote access stack in one Docker container — RDP, SSH, VNC, Moonlight/Sunshine, Telnet, SMB, SFTP, FTP, MySQL & PostgreSQL.
 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Image Size](https://img.shields.io/endpoint?url=https://gatwy-image-size.gatwy.dev)
-[![Latest Release](https://img.shields.io/github/v/release/kotoxie/gatwy?label=release)](https://github.com/kotoxie/gatwy/releases/latest)
-[![Docker Image](https://img.shields.io/badge/ghcr.io-kotoxie%2Fgatwy-blue?logo=docker)](https://ghcr.io/kotoxie/gatwy)
 
-**No middleware. No Java. No server relay. WebAssembly-native RDP running directly in your browser — zero overhead across all 9 protocols.**
-
-[Website](https://gatwy.dev) · [Documentation](https://docs.gatwy.dev) · [Gatwy vs Guacamole](https://docs.gatwy.dev/comparison)
+**Fork note:** This repository ([Helvio88/Gatwy](https://github.com/Helvio88/Gatwy)) is a fork of [kotoxie/Gatwy](https://github.com/kotoxie/Gatwy) with Moonlight/Sunshine streaming support. Deploy by building from source with Docker Compose.
 
 </div>
 
@@ -22,50 +17,98 @@
 
 ## 🚀 Why Gatwy?
 
-Most browser-based remote access tools relay your display through a server-side engine, adding latency and complexity. Gatwy's RDP client runs **entirely in your browser** using WebAssembly — pixel-perfect, low-latency RDP with no middleware, no Java, and no extra containers.
+Most browser-based remote access tools relay your display through a server-side engine, adding latency and complexity. Gatwy's RDP client runs **entirely in your browser** using WebAssembly, while Moonlight sessions use an in-container streamer that forwards Sunshine/GameStream into the browser (WebSocket transport by default, WebRTC optional).
 
-One container. Zero dependencies. Open your browser and connect.
+One container. Open your browser and connect.
 
 ---
 
 ## ✨ Highlights
 
-- **9 protocols** — RDP (WebAssembly), SSH, VNC, Telnet, SMB, SFTP, FTP, PostgreSQL, MySQL
+- **10 protocols** — RDP (WebAssembly), SSH, VNC, **Moonlight / Sunshine**, Telnet, SMB, SFTP, FTP, PostgreSQL, MySQL
+- **Moonlight PIN pairing** — Gatwy shows the 4-digit PIN; enter it in Sunshine; pairing survives restarts under `/app/data`
 - **Split-pane workspace** — unlimited sessions side by side with drag-and-drop tabs
 - **Session recording & audit** — encrypted RDP video, SSH asciinema, command-level audit log with auto-redacted passwords, file activity tracking
-- **Granular RBAC** — 27 fine-grained permissions, custom roles, per-connection sharing, protocol-level access control
+- **Granular RBAC** — fine-grained permissions, custom roles, per-connection sharing, protocol-level access control (including `protocols.moonlight`)
 - **Auth flexibility** — local accounts, LDAP/AD, OpenID Connect (SSO), MFA (TOTP), IP access rules
 - **Alerting** — SMTP, Telegram, Slack, Webhook channels with a no-code rule builder
 - **Encrypted backup & restore** — single-file `.geb` backup with AES-256 encryption
 
-👉 **[Full feature list →](https://docs.gatwy.dev/features/overview)**
-
 ---
 
-## 🐳 Quick Start
+## 🐳 Quick Start (build from git)
+
+```bash
+git clone https://github.com/Helvio88/Gatwy.git
+cd Gatwy
+docker compose up --build -d
+```
+
+`docker-compose.yml` builds from the repo context:
 
 ```yaml
-# docker-compose.yml
 services:
   gatwy:
-    image: ghcr.io/kotoxie/gatwy:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: gatwy
     restart: unless-stopped
     ports:
       - '7443:7443'
+      # Optional WebRTC UDP range (only if you switch Moonlight off WebSocket transport)
+      # - '40000-40100:40000-40100/udp'
     volumes:
       - ./data:/app/data
     environment:
       - GATWY_ENCRYPTION_KEY=your-64-char-hex-key  # openssl rand -hex 32
 ```
 
-```bash
-docker compose up -d
-```
-
 Open **`https://<YOUR_IP>:7443`** — on first launch you'll be prompted to create an admin account.
 
-> ⚠️ The browser will warn about the self-signed certificate. Accept the exception to proceed, or [bring your own cert](https://docs.gatwy.dev).
+> ⚠️ The browser will warn about the self-signed certificate. Accept the exception to proceed.
+
+### Without Docker (Node.js 22+)
+
+```bash
+git clone https://github.com/Helvio88/Gatwy.git && cd Gatwy
+npm install && npm run build && npm start
+```
+
+> Moonlight streaming requires the bundled `web-server` / `streamer` binaries (installed automatically in the Docker image under `/opt/moonlight-web`). For bare-metal runs, download a [moonlight-web-stream release](https://github.com/MrCreativ3001/moonlight-web-stream/releases) and set `MOONLIGHT_WEB_DIR` to that folder.
+
+---
+
+## 🌙 Moonlight / Sunshine
+
+1. Create a connection under **Remote Control → Moonlight**.
+2. Host = Sunshine PC hostname/IP. Port = **47989** (GameStream HTTP; override in advanced fields if needed).
+3. Preferred app defaults to **Desktop**.
+4. Connect — if unpaired, Gatwy shows **Enter this PIN in Sunshine**.
+5. On the Sunshine host open the web UI (usually `https://<pc>:47990`) → PIN → enter the code.
+6. Streaming starts in a Gatwy tab (mouse/keyboard via the embedded viewer). Use **Forget pairing** to re-pair.
+
+### Sunshine firewall / ports
+
+On the Sunshine PC, allow at least:
+
+| Port | Proto | Purpose |
+|------|-------|---------|
+| 47989 | TCP | GameStream HTTP |
+| 47984 | TCP | GameStream HTTPS |
+| 47990 | TCP | Sunshine web UI (PIN entry) |
+| 48010 | TCP | RTSP |
+| 47998–48000 | UDP | Video / audio / control |
+
+Gatwy ↔ Sunshine must be reachable on those ports from the Gatwy container (same LAN is the common case).
+
+### Gatwy Moonlight networking notes
+
+- Default browser transport is **WebSocket** (works through Gatwy’s single HTTPS port `7443` — no extra UDP publish required).
+- For WebRTC instead, publish UDP `40000-40100` on the Gatwy host and set `MOONLIGHT_WEBRTC_NAT_1TO1_HOST` to the Gatwy host’s LAN/public IP.
+- Pairing certs live under `/app/data/moonlight-web` plus an encrypted backup in `/app/data/moonlight/pairings/`.
+
+Credits: [Moonlight](https://moonlight-stream.org/), [Sunshine](https://github.com/LizardByte/Sunshine), [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream).
 
 ---
 
@@ -76,36 +119,24 @@ Open **`https://<YOUR_IP>:7443`** — on first launch you'll be prompted to crea
 | `GATWY_ENCRYPTION_KEY` | *(auto-generated file)* | 64-char hex AES-256 key. **Set this in production.** Generate with `openssl rand -hex 32` |
 | `PORT` | `7443` | HTTPS port |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | *(auto)* | Custom TLS certificate & key paths |
-| `DATA_DIR` | `/app/data` | Database, certs, recordings, and logs |
+| `DATA_DIR` | `/app/data` | Database, certs, recordings, logs, Moonlight pairing |
+| `MOONLIGHT_WEB_DIR` | `/opt/moonlight-web` | Path to moonlight-web `web-server` + `streamer` |
+| `MOONLIGHT_WEBRTC_PORT_MIN` / `_MAX` | `40000` / `40100` | WebRTC UDP range inside the container |
+| `MOONLIGHT_WEBRTC_NAT_1TO1_HOST` | *(unset)* | Optional public/LAN IP advertised for WebRTC ICE |
 
 > ⚠️ If no encryption key env var is set, Gatwy auto-generates one at `/app/data/encryption.key` with a warning banner. Fine for home-lab — not recommended for production.
-
-👉 **[Full configuration reference →](https://docs.gatwy.dev)**
 
 ---
 
 ## 🔄 Updating
 
 ```bash
-docker compose pull && docker compose up -d
-```
-
----
-
-## 🛠️ Building from Source
-
-```bash
-git clone https://github.com/kotoxie/gatwy && cd Gatwy/
-
-# With Docker
+git pull
 docker compose up --build -d
-
-# Without Docker (Node.js 20+)
-npm install && npm run build && npm start
 ```
 
 ---
 
 ## 📄 License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — based on upstream [kotoxie/Gatwy](https://github.com/kotoxie/Gatwy). Moonlight streaming integrates [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream); see that project for its license terms.

@@ -67,6 +67,7 @@ const PROTOCOL_ICONS: Record<string, string> = {
   rdp: '🖥',
   smb: '📁',
   vnc: '🖱',
+  moonlight: '☾',
   sftp: '📂',
   ftp: '🗂',
   telnet: '⌨',
@@ -142,6 +143,11 @@ const PROTOCOL_SUBMENU: Array<{ protocol: Protocol; label: string; icon: React.R
       <rect x="2" y="3" width="20" height="14" rx="2" />
       <circle cx="12" cy="10" r="3" />
       <line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  )},
+  { protocol: 'moonlight', label: 'Moonlight', icon: (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
     </svg>
   )},
   { protocol: 'telnet', label: 'Telnet', icon: (
@@ -1263,7 +1269,7 @@ export function Sidebar({ onConnect, onConnectMultiple, width }: SidebarProps) {
             name: '',
             protocol: newConnProtocol,
             host: '',
-            port: { rdp: 3389, ssh: 22, smb: 445, vnc: 5900, sftp: 22, ftp: 21, telnet: 23, postgres: 5432, mysql: 3306 }[newConnProtocol] ?? 3389,
+            port: { rdp: 3389, ssh: 22, smb: 445, vnc: 5900, moonlight: 47989, sftp: 22, ftp: 21, telnet: 23, postgres: 5432, mysql: 3306 }[newConnProtocol] ?? 3389,
             username: '',
             groupId: newConnGroupId,
             shared: false,
