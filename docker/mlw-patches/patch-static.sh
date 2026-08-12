@@ -1,5 +1,6 @@
 #!/bin/sh
-# Patch bundled moonlight-web static assets for Gatwy chrome + sops.
+# Patch bundled moonlight-web static assets for Gatwy chrome, sops, and
+# fullscreen fill hit-testing (skip letterbox correction under gatwy-fullscreen).
 # POSIX sh only — production image is node:*-slim (no bash/python3).
 set -eu
 
@@ -13,12 +14,18 @@ fi
 
 install -m 0644 "$PATCH_DIR/gatwy-stream.css" "$STATIC_DIR/styles/gatwy-stream.css"
 install -m 0644 "$PATCH_DIR/gatwy-sops.js" "$STATIC_DIR/gatwy-sops.js"
+install -m 0644 "$PATCH_DIR/gatwy-stream-rect.js" "$STATIC_DIR/gatwy-stream-rect.js"
 
 STREAM_HTML="$STATIC_DIR/stream.html"
 if [ -f "$STREAM_HTML" ] && ! grep -q 'gatwy-stream.css' "$STREAM_HTML"; then
   # Insert Gatwy CSS + early sops hook after the standard stylesheet link.
   sed -i \
-    's#<link rel="stylesheet" href="styles/standard.css" id="style">#<link rel="stylesheet" href="styles/standard.css" id="style">\n    <link rel="stylesheet" href="styles/gatwy-stream.css" id="gatwy-style">\n    <script src="gatwy-sops.js"></script>#' \
+    's#<link rel="stylesheet" href="styles/standard.css" id="style">#<link rel="stylesheet" href="styles/standard.css" id="style">\n    <link rel="stylesheet" href="styles/gatwy-stream.css" id="gatwy-style">\n    <script src="gatwy-sops.js"></script>\n    <script src="gatwy-stream-rect.js"></script>#' \
+    "$STREAM_HTML"
+elif [ -f "$STREAM_HTML" ] && ! grep -q 'gatwy-stream-rect.js' "$STREAM_HTML"; then
+  # Image already had CSS/sops from an older patch — add stream-rect next to sops.
+  sed -i \
+    's#<script src="gatwy-sops.js"></script>#<script src="gatwy-sops.js"></script>\n    <script src="gatwy-stream-rect.js"></script>#' \
     "$STREAM_HTML"
 fi
 
@@ -51,6 +58,27 @@ if (n === 0) {
 }
 fs.writeFileSync(path, text);
 console.log("patched sops into " + path);
+' "$STREAM_INDEX"
+fi
+
+# Skip getStreamRectCorrected letterbox math when html.gatwy-fullscreen
+# (object-fit: fill). Windowed contain still uses the original corrected rect.
+# Idempotent: skipped when the gatwy-fullscreen early-return is already present.
+if [ -f "$STREAM_INDEX" ] && ! grep -q 'gatwy-fullscreen' "$STREAM_INDEX"; then
+  node -e '
+const fs = require("fs");
+const path = process.argv[1];
+let text = fs.readFileSync(path, "utf8");
+const early =
+  "if (typeof document !== \"undefined\" && document.documentElement && document.documentElement.classList.contains(\"gatwy-fullscreen\")) { return boundingRect; }";
+const re = /function getStreamRectCorrected\s*\(\s*boundingRect\s*,\s*videoSize\s*\)\s*\{/;
+if (!re.test(text)) {
+  console.error("warning: could not patch getStreamRectCorrected in stream/index.js");
+  process.exit(0);
+}
+text = text.replace(re, (chunk) => chunk + "\n    " + early);
+fs.writeFileSync(path, text);
+console.log("patched getStreamRectCorrected fill skip into " + path);
 ' "$STREAM_INDEX"
 fi
 

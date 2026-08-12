@@ -54,7 +54,7 @@ RUN set -eux; \
     || /opt/moonlight-web/web-server --help \
     || /opt/moonlight-web/web-server help
 
-# Gatwy chrome: quiet connecting overlay + force sops on StartStream (Sunshine client resolution)
+# Gatwy chrome: quiet connecting overlay, force sops on StartStream, fullscreen fill hit-test
 COPY docker/mlw-patches/ /tmp/gatwy-mlw-patches/
 # Explicit sh: slim image has no bash; script is POSIX + sed/node only.
 RUN chmod +x /tmp/gatwy-mlw-patches/patch-static.sh \

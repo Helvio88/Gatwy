@@ -243,6 +243,9 @@ body.stream {
   --stream-video-top: 0;
   overflow: hidden !important;
   overscroll-behavior: none !important;
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
@@ -267,6 +270,9 @@ body.stream::-webkit-scrollbar {
 video.video-stream,
 canvas.video-stream {
   overflow: hidden !important;
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 /*

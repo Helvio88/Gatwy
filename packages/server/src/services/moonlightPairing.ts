@@ -16,6 +16,8 @@ export interface MoonlightExtraConfig {
   fps?: number;
   /** `auto` = client-area size; otherwise `WIDTHxHEIGHT` (e.g. `1920x1080`). */
   resolution?: string;
+  /** moonlight-web TouchMode: pointAndDrag | localCursor | mouseRelative | touch. */
+  touchMode?: string;
 }
 
 const RESOLUTION_RE = /^\d{3,5}x\d{3,5}$/i;
@@ -27,6 +29,28 @@ export function normalizeMoonlightResolution(raw: unknown): string {
   if (v === 'auto' || v === 'native') return 'auto';
   if (RESOLUTION_RE.test(v)) return v;
   return 'auto';
+}
+
+export const MOONLIGHT_TOUCH_MODES = [
+  'pointAndDrag',
+  'localCursor',
+  'mouseRelative',
+  'touch',
+] as const;
+
+export type MoonlightTouchMode = (typeof MOONLIGHT_TOUCH_MODES)[number];
+
+/** Gatwy default — better than MLW’s mouseRelative on tablets. */
+export const MOONLIGHT_TOUCH_MODE_DEFAULT: MoonlightTouchMode = 'pointAndDrag';
+
+const TOUCH_MODE_SET = new Set<string>(MOONLIGHT_TOUCH_MODES);
+
+/** Normalize stored/request touchMode; unset / invalid → `pointAndDrag`. */
+export function normalizeMoonlightTouchMode(raw: unknown): MoonlightTouchMode {
+  if (typeof raw !== 'string' || !raw.trim()) return MOONLIGHT_TOUCH_MODE_DEFAULT;
+  const v = raw.trim();
+  if (TOUCH_MODE_SET.has(v)) return v as MoonlightTouchMode;
+  return MOONLIGHT_TOUCH_MODE_DEFAULT;
 }
 
 export interface StoredMoonlightPairing {

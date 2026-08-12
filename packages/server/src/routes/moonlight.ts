@@ -21,6 +21,7 @@ import {
   loadEncryptedPairing,
   mergeMoonlightExtra,
   normalizeMoonlightResolution,
+  normalizeMoonlightTouchMode,
   parseMoonlightExtra,
   resolveHttpPort,
   saveEncryptedPairing,
@@ -159,6 +160,7 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       bitrateKbps: extra.bitrateKbps ?? 20000,
       fps: extra.fps ?? 60,
       resolution: normalizeMoonlightResolution(extra.resolution),
+      touchMode: normalizeMoonlightTouchMode(extra.touchMode),
     });
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Moonlight status failed' });
@@ -166,7 +168,7 @@ router.get('/:id/status', async (req: Request, res: Response) => {
 });
 
 // ── PUT /:id/settings ────────────────────────────────────────────
-// Persist stream prefs (bitrate / fps / resolution) without starting a session.
+// Persist stream prefs (bitrate / fps / resolution / touchMode) without starting a session.
 router.put('/:id/settings', (req: Request, res: Response) => {
   const conn = getAccessibleMoonlightConn(req, paramId(req));
   if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
@@ -183,6 +185,9 @@ router.put('/:id/settings', (req: Request, res: Response) => {
   if (req.body?.resolution !== undefined) {
     patch.resolution = normalizeMoonlightResolution(req.body.resolution);
   }
+  if (req.body?.touchMode !== undefined) {
+    patch.touchMode = normalizeMoonlightTouchMode(req.body.touchMode);
+  }
 
   extra = mergeMoonlightExtra(extra, patch);
   saveExtra(conn.id, extra);
@@ -192,6 +197,7 @@ router.put('/:id/settings', (req: Request, res: Response) => {
     bitrateKbps: extra.bitrateKbps ?? 20000,
     fps: extra.fps ?? 60,
     resolution: normalizeMoonlightResolution(extra.resolution),
+    touchMode: normalizeMoonlightTouchMode(extra.touchMode),
   });
 });
 
@@ -395,8 +401,11 @@ router.post('/:id/session', async (req: Request, res: Response) => {
     const resolution = req.body?.resolution !== undefined
       ? normalizeMoonlightResolution(req.body.resolution)
       : normalizeMoonlightResolution(extra.resolution);
+    const touchMode = req.body?.touchMode !== undefined
+      ? normalizeMoonlightTouchMode(req.body.touchMode)
+      : normalizeMoonlightTouchMode(extra.touchMode);
 
-    extra = mergeMoonlightExtra(extra, { bitrateKbps, fps, resolution, paired: true });
+    extra = mergeMoonlightExtra(extra, { bitrateKbps, fps, resolution, touchMode, paired: true });
     saveExtra(conn.id, extra);
 
     res.json({
@@ -408,6 +417,7 @@ router.post('/:id/session', async (req: Request, res: Response) => {
       bitrateKbps,
       fps,
       resolution,
+      touchMode,
     });
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Failed to start session' });

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.13
+
+### Moonlight touch
+
+- **Touch mode** on the Moonlight right panel (RDP-style select): Point and drag, Local cursor, Trackpad, Native touch. Default for new/unset prefs is **point and drag** (better than moonlight-web’s trackpad default on tablets). Saved via `PUT /api/v1/moonlight/:id/settings` like resolution; written into `mlSettings.touchMode` before every (re)launch. Local cursor also gets `localCursorSensitivity: 1` when unset.
+- Mid-session changes call ViewerApp `setInputConfig` (no stream restart). If that API is not ready, the stream relaunches with the new mode — same pattern as resolution.
+- **Fullscreen fill hit-testing:** `html.gatwy-fullscreen` uses `object-fit: fill`, but moonlight-web’s `getStreamRectCorrected` still assumed contain letterboxing, so taps landed offset. A same-origin wrap on ViewerApp / video renderer `getStreamRect` (runtime inject + Docker `gatwy-stream-rect.js`, plus a static patch of `getStreamRectCorrected`) returns the raw video box in fullscreen. Windowed contain still uses the corrected rect.
+- Stream surface and iframe chrome use `touch-action: none` so the page does not scroll or zoom while using the stream. Iframe `onLoad` inject is unchanged. On-screen keyboard, lock mouse, send key, Auto FS remeasure, and quiet neon are untouched.
+
 ## 0.19.12
 
 ### Moonlight stream UI
