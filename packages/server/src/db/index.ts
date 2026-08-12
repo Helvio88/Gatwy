@@ -718,6 +718,70 @@ function runMigrations() {
         try { database.run('ALTER TABLE users ADD COLUMN mfa_method TEXT'); } catch { /* already exists */ }
       },
     },
+    {
+      version: 17,
+      run: (database: Database) => {
+        // Add 'moonlight' to the connections protocol CHECK constraint.
+        const res = database.exec(
+          `SELECT sql FROM sqlite_master WHERE type='table' AND name='connections'`,
+        );
+        const createSql = (res[0]?.values[0]?.[0] as string) ?? '';
+        if (!createSql.includes("'moonlight'")) {
+          database.run(`CREATE TABLE connections_v17 (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            group_id TEXT REFERENCES connection_groups(id) ON DELETE SET NULL,
+            name TEXT NOT NULL,
+            protocol TEXT NOT NULL CHECK(protocol IN ('ssh','rdp','smb','vnc','sftp','ftp','telnet','postgres','mysql','moonlight')),
+            host TEXT NOT NULL,
+            port INTEGER NOT NULL,
+            username TEXT,
+            encrypted_password TEXT,
+            private_key TEXT,
+            extra_config_json TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            recording_enabled INTEGER NOT NULL DEFAULT 1,
+            shared INTEGER NOT NULL DEFAULT 0,
+            tunnels_json TEXT,
+            host_fingerprint TEXT,
+            tags TEXT,
+            skip_cert_validation INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`);
+          database.run(`INSERT INTO connections_v17
+            SELECT id, user_id, group_id, name, protocol, host, port, username, encrypted_password,
+                   private_key, extra_config_json, sort_order, recording_enabled, shared, tunnels_json,
+                   host_fingerprint, tags, skip_cert_validation, created_at, updated_at
+            FROM connections`);
+          database.run('DROP TABLE connections');
+          database.run('ALTER TABLE connections_v17 RENAME TO connections');
+          database.run('CREATE INDEX IF NOT EXISTS idx_connections_user ON connections(user_id)');
+        }
+
+        // Grant protocols.moonlight to admin/user roles that already have RDP or VNC
+        for (const roleId of ['admin', 'user']) {
+          const row = database.exec(`SELECT permissions_json FROM roles WHERE id = '${roleId}'`);
+          if (!row.length || !row[0].values.length) continue;
+          const raw = row[0].values[0][0] as string;
+          let perms: string[] = [];
+          try { perms = JSON.parse(raw) as string[]; } catch { continue; }
+          if (!perms.includes('protocols.moonlight')) {
+            if (
+              roleId === 'admin'
+              || perms.includes('protocols.rdp')
+              || perms.includes('protocols.vnc')
+            ) {
+              perms.push('protocols.moonlight');
+              database.run(
+                `UPDATE roles SET permissions_json = ? WHERE id = ?`,
+                [JSON.stringify(perms), roleId],
+              );
+            }
+          }
+        }
+      },
+    },
   ];
 
   for (const migration of migrations) {

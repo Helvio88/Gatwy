@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:22-alpine AS builder
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -21,12 +21,34 @@ RUN npm run build --workspace=packages/client
 RUN npm run build --workspace=packages/server
 
 # Stage 2: Production
-FROM node:22-alpine
+FROM node:22-bookworm-slim
+
+ARG TARGETARCH
+ARG MOONLIGHT_WEB_VERSION=v2.10.0
 
 WORKDIR /app
 
-# Install runtime dependencies (su-exec for privilege drop in entrypoint — pure C, no Go)
-RUN apk add --no-cache ca-certificates curl su-exec openssl
+# Runtime deps: curl/ca-certs for healthcheck, gosu for privilege drop,
+# openssl for TLS helpers. moonlight-web-stream is a glibc binary.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl gosu openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+# Bundle moonlight-web-stream (server-side Moonlight client + WebRTC/WS streamer)
+RUN set -eux; \
+  case "$TARGETARCH" in \
+    amd64) ML_ARCH=x86_64-unknown-linux-gnu ;; \
+    arm64) ML_ARCH=aarch64-unknown-linux-gnu ;; \
+    *) echo "Unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
+  esac; \
+  curl -fsSL -o /tmp/moonlight-web.tar.gz \
+    "https://github.com/MrCreativ3001/moonlight-web-stream/releases/download/${MOONLIGHT_WEB_VERSION}/moonlight-web-${ML_ARCH}.tar.gz"; \
+  mkdir -p /opt/moonlight-web; \
+  tar -xzf /tmp/moonlight-web.tar.gz -C /opt/moonlight-web --strip-components=1; \
+  chmod +x /opt/moonlight-web/web-server /opt/moonlight-web/streamer; \
+  rm -f /tmp/moonlight-web.tar.gz
+
+ENV MOONLIGHT_WEB_DIR=/opt/moonlight-web
 
 # Copy package files and install production deps only
 COPY package.json package-lock.json* ./
@@ -41,26 +63,24 @@ COPY --from=builder /app/packages/server/dist packages/server/dist/
 COPY --from=builder /app/packages/client/dist packages/client/dist/
 
 # Pre-create data directory with correct ownership BEFORE declaring VOLUME.
-# Docker initialises the volume mount from the image layer at this path;
-# setting ownership here is preserved when an anonymous/named volume is first
-# created.  For bind-mounts the host directory must be writable by uid 1000.
-RUN mkdir -p /app/data && chown -R node:node /app
+RUN mkdir -p /app/data && chown -R node:node /app /opt/moonlight-web
 
 # Copy entrypoint — runs as root, chowns /app/data, then drops to node user
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 7443
+# Optional WebRTC UDP range when not using WebSocket transport
+EXPOSE 40000-40100/udp
 
 VOLUME /app/data
 
 ENV DATA_DIR=/app/data
 ENV NODE_ENV=production
 # @marsaud/smb2 uses ntlm which calls DES-ECB — a legacy cipher disabled in OpenSSL 3.
-# Enable the OpenSSL legacy provider so SMB NTLM authentication works on modern Node runtimes.
 ENV NODE_OPTIONS="--openssl-legacy-provider"
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
   CMD curl -fsk https://localhost:7443/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
