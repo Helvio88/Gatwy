@@ -5,15 +5,38 @@
  * Keep in sync with MLW_CHROME_STYLE in MoonlightSession.tsx (runtime inject).
  */
 
-/* Soften MLW accent tokens used by connecting UI */
-html.stream {
-  --accent-cyan: rgba(255, 255, 255, 0.4);
-  --accent-cyan-2: rgba(255, 255, 255, 0.5);
-  --accent-cyan-light: rgba(255, 255, 255, 0.6);
-  --glow-cyan: none;
-  --glow-cyan-bright: none;
-  --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --text-1: rgba(255, 255, 255, 0.65);
+/* Soften MLW accent tokens used by connecting UI.
+ * !important is required — standard.css hardcodes #00d4ff / #00f5ff / #00ffff
+ * and color: var(--accent-cyan-2); variables alone do not win. */
+html.stream,
+html.stream body,
+body.stream {
+  --accent-cyan: rgba(255, 255, 255, 0.4) !important;
+  --accent-cyan-2: rgba(255, 255, 255, 0.5) !important;
+  --accent-cyan-light: rgba(255, 255, 255, 0.6) !important;
+  --glow-cyan: none !important;
+  --glow-cyan-bright: none !important;
+  --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+  --text-1: rgba(255, 255, 255, 0.65) !important;
+  --bg-0: #000000 !important;
+  --bg-1: #050505 !important;
+  --bg-2: #000000 !important;
+  --bg-3: #0a0a0a !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  text-shadow: none !important;
+  background: #000 !important;
+  background-image: none !important;
+}
+
+/* Kill the blue cyber gradient during connect / reconnect. */
+html.stream body::before,
+body.stream::before {
+  background: #000 !important;
+  background-image: none !important;
+  background-color: #000 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  opacity: 1 !important;
 }
 
 /* Connecting modal backdrop — quiet, centered, not purple/cyan neon */
@@ -46,14 +69,17 @@ html.stream {
   align-items: center !important;
   gap: 8px !important;
   min-height: 0 !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  text-shadow: none !important;
 }
 
 .modal-video-connect > p,
-.modal-video-connect .textlike {
+.modal-video-connect .textlike,
+.modal-video-connect p {
   font-size: 12px !important;
   font-weight: 400 !important;
   line-height: 1.35 !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
   text-shadow: none !important;
   text-align: center !important;
   margin: 0 !important;
@@ -137,7 +163,7 @@ html.stream {
 
 .host-loading-text {
   font-size: 12px !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
   text-shadow: none !important;
 }
 
@@ -156,6 +182,40 @@ html.stream {
 .host-loading-cancel:focus {
   transform: none !important;
   background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Override hardcoded cyan in moonlight-web standard.css on connect chrome.
+ * Selectors that set color:#00f5ff / #00d4ff / #00ffff or var(--accent-cyan-2)
+ * still win without these !important rules.
+ */
+html.stream .modal-video-connect,
+html.stream .modal-video-connect > p,
+html.stream .modal-video-connect p,
+html.stream .modal-video-connect .textlike,
+html.stream .textlike,
+html.stream .host-loading-text,
+html.stream .modal-background:not(.modal-disabled) .modal-content,
+html.stream .modal-background:not(.modal-disabled) .modal-content p,
+html.stream .modal-background:not(.modal-disabled) .modal-content span {
+  color: rgba(255, 255, 255, 0.7) !important;
+  text-shadow: none !important;
+}
+
+html.stream .modal-video-connect button,
+html.stream .modal-video-connect .modal-video-connect-options button,
+html.stream .host-loading-cancel {
+  color: rgba(255, 255, 255, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+html.stream .host-element.connecting::before,
+html.stream .host-loading-spinner {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  border-top-color: rgba(255, 255, 255, 0.55) !important;
   box-shadow: none !important;
 }
 
@@ -297,8 +357,8 @@ canvas.video-stream {
  * pane (Auto after correct relaunch); true H+V center with black bars when
  * smaller. No translate centering — 0.19.10’s top/left 50% + translate +
  * width/height auto fought MLW’s --stream-video-top / canvas bitmap sizing
- * and pushed the stream up/left. No object-fit:fill (stretches). Keep
- * html/body overflow:hidden above.
+ * and pushed the stream up/left. Windowed stays contain + center.
+ * Keep html/body overflow:hidden above.
  */
 .video-stream,
 video.video-stream,
@@ -321,4 +381,15 @@ canvas.video-stream {
   box-sizing: border-box !important;
   overflow: hidden !important;
   margin: 0 !important;
+}
+
+/*
+ * Fullscreen safety net: residual letterbox after Auto relaunch when Sunshine
+ * WxH still slightly mismatches the FS pane. Parent toggles html.gatwy-fullscreen
+ * on the iframe document. Windowed must NOT use fill (smaller presets stay centered).
+ */
+html.gatwy-fullscreen .video-stream,
+html.gatwy-fullscreen video.video-stream,
+html.gatwy-fullscreen canvas.video-stream {
+  object-fit: fill !important;
 }

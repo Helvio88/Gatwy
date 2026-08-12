@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.12
+
+### Moonlight stream UI
+
+- **Fullscreen bars:** Auto remeasure now reads the **fullscreen element** (`sessionRef` / `document.fullscreenElement`) instead of a stale/smaller iframe box. After `fullscreenchange`, wait 2× rAF + ~200ms and retry a few times if size is still drifting or a relaunch lock is held.
+- **Fullscreen fill safety net:** while the Gatwy session is fullscreen, the parent toggles `html.gatwy-fullscreen` on the iframe document (on `fullscreenchange` and iframe `onLoad`). Video/canvas then uses `object-fit: fill` so residual letterbox after Auto relaunch is gone. **Windowed** stays `contain` + center (smaller presets remain centered). No translate centering. Overflow lock kept.
+- **Reconnect neon:** moonlight-web `standard.css` hardcodes `#00d4ff` / `#00f5ff` / `#00ffff` and `color: var(--accent-cyan-2)` on Connecting / host-loading text — CSS variables alone did not kill it. Accents are now forced muted with `!important` on `html.stream` / `body.stream`; body text-shadow neutralized; `body.stream::before` is solid black (no blue cyber gradient). Connect modal copy, `.textlike`, `.host-loading-text`, buttons, and spinners are muted white; stage lines stay 12px quiet (Close still usable). Notifications stay hidden.
+- CSS kept in sync between Docker-baked `gatwy-stream.css` and runtime `MLW_CHROME_STYLE`. Left sidebar hidden, Gatwy-native send key, ESC pointer-lock sync, quiet FormModals, and PIN pairing unchanged.
+
 ## 0.19.11
 
 ### Moonlight stream UI
