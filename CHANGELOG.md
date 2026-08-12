@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.9
+
+### Moonlight stream UI
+
+- **Auto** measures the visible Gatwy stream surface / iframe client box exactly (even WxH via `clientWidth`/`clientHeight` + floored `getBoundingClientRect`), writes `mlSettings` as `videoSize: 'custom'`, and relaunches so Sunshine (sops) matches the pane — no wasted letterbox / dual-desktop look from a mismatched host size. Post-load correction if the first measure drifted.
+- Scrollbars stay gone: stream document overflow lock (from 0.19.8), iframe `scrolling="no"` + `overflow: hidden`, scrollbar gutters hidden. Video fill unchanged (`inset: 0`, `object-fit: fill`).
+- **Send key** is Gatwy-native in the right panel (presets + custom VK hex/decimal → same-origin `StreamInput.sendKey`). No longer opens moonlight-web’s neon FormModal.
+- Remaining MLW modal / context-menu chrome quieted to dark muted Gatwy style; MLW notification toasts hidden (Gatwy owns session status). Left `.sidebar-overlay` stays fully hidden. Floating soft-keyboard hide button stays, de-neoned.
+
 ## 0.19.8
 
 ### Moonlight stream UI

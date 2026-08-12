@@ -1,6 +1,6 @@
 {
   "name": "Gatwy",
-  "version": "0.19.8",
+  "version": "0.19.9",
   "private": true,
   "engines": {
     "node": ">=22"

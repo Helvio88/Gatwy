@@ -201,8 +201,94 @@ body.stream::-webkit-scrollbar {
 }
 
 #root,
-#input {
+#input,
+.video-stream,
+video.video-stream,
+canvas.video-stream {
   overflow: hidden !important;
+}
+
+/*
+ * Quiet ALL MLW modal chrome (FormModal, message modals, connecting).
+ * Connecting-specific rules above refine size/copy; this kills neon cyan
+ * for anything else that still mounts via showModal.
+ */
+.modal-background:not(.modal-disabled) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(1px) !important;
+}
+
+.modal-background:not(.modal-disabled) .modal-content {
+  background: rgba(16, 16, 18, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  text-shadow: none !important;
+  border-radius: 10px !important;
+  width: auto !important;
+  max-width: min(320px, 88vw) !important;
+  max-height: min(70vh, 480px) !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  overflow: auto !important;
+}
+
+.modal-content button,
+.modal-content input,
+.modal-content select,
+.modal-content .textlike {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border-radius: 8px !important;
+}
+
+.modal-content button:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  transform: none !important;
+}
+
+/* Hide MLW toast stack — Gatwy owns session status / errors. */
+#notification-list,
+.notification-list,
+.notification-element {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+/* Soften leftover neon on context menus + floating keyboard hide. */
+.context-menu-background {
+  background: rgba(16, 16, 18, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.context-menu-element {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.context-menu-element:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-left: none !important;
+  transform: none !important;
+  padding-left: 10px !important;
+}
+
+.stream-keyboard-floating-button {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
 }
 
 /*
