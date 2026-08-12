@@ -38,6 +38,7 @@ declare module '@novnc/novnc' {
     focusOnClick: boolean;
 
     disconnect(): void;
+    sendCredentials(creds: { username?: string; password?: string; target?: string }): void;
     sendKey(keysym: number, code: string, down?: boolean): void;
     sendCtrlAltDel(): void;
     machineShutdown(): void;
