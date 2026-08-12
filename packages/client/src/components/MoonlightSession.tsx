@@ -223,6 +223,7 @@ html.stream {
 html.stream,
 html.stream body,
 body.stream {
+  --stream-video-top: 0;
   overflow: hidden !important;
   overscroll-behavior: none !important;
   margin: 0 !important;
@@ -321,26 +322,28 @@ canvas.video-stream {
   border-radius: 10px !important;
 }
 
-/* Contain + center: smaller streams letterbox/pillarbox; Auto still fills. */
+/* Full-pane contain: fill when matching; center when smaller. No translate. */
 .video-stream,
 video.video-stream,
 canvas.video-stream {
   position: fixed !important;
-  top: 50% !important;
-  left: 50% !important;
-  right: auto !important;
-  bottom: auto !important;
-  inset: auto !important;
-  transform: translate(-50%, -50%) !important;
-  width: auto !important;
-  height: auto !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: contain !important;
+  object-position: center center !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
+  margin: 0 !important;
 }
 `;
 

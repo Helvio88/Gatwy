@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.11
+
+### Moonlight stream UI
+
+- Stream was pushed **up/left** because 0.19.10’s `top/left: 50%` + `transform: translate(-50%,-50%)` + `width/height: auto` fought moonlight-web’s own `--stream-video-top` / canvas bitmap sizing.
+- Video/canvas now uses a **full-pane box** (`position: fixed; inset: 0; width/height: 100%`) with `object-fit: contain` and `object-position: center` — no translate centering. Matching the pane (Auto after correct relaunch) fills visually; smaller streams stay truly centered with black bars. Never stuck up/left. No `object-fit: fill` (stretches).
+- Neutralized `--stream-video-top` (unused with `inset: 0` + `transform: none`). Overflow lock, hidden left sidebar, quiet MLW modals, Auto fullscreen remeasure, ESC pointer-lock sync, and Gatwy-native send key kept from 0.19.9/0.19.10.
+- CSS synced in Docker-baked `gatwy-stream.css` and runtime `MLW_CHROME_STYLE`.
+
 ## 0.19.10
 
 ### Moonlight stream UI
