@@ -292,28 +292,29 @@ canvas.video-stream {
 }
 
 /*
- * Fill the iframe pane — kill pillarbox/letterbox bars from MLW’s default
- * centered vmin + object-fit:contain. Prefer fill over cover (cover crops
- * desktop edges). Size via inset only (width/height:auto) so 100% doesn’t
- * fight body padding/min-height. Fixed presets in a differently-shaped pane
- * may stretch slightly; Auto matching the client area stays preferred.
+ * Contain + center the stream in the iframe pane.
+ * Smaller than the canvas → letterbox/pillarbox with black bars, video
+ * centered H+V. Matching the pane (Auto) → contain with equal aspect fills
+ * visually. No 100vmin mins (those caused scrollbars in 0.19.8). Keep
+ * html/body overflow:hidden above.
  */
 .video-stream,
 video.video-stream,
 canvas.video-stream {
   position: fixed !important;
-  inset: 0 !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  transform: none !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  inset: auto !important;
+  transform: translate(-50%, -50%) !important;
   width: auto !important;
   height: auto !important;
-  max-width: none !important;
-  max-height: none !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
-  object-fit: fill !important;
+  object-fit: contain !important;
   box-sizing: border-box !important;
+  overflow: hidden !important;
 }
