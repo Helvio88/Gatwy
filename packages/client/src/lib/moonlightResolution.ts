@@ -103,5 +103,7 @@ export function appendStreamLaunchParams(
   url.searchParams.set('videoSizeCustom.width', String(mapped.videoSizeCustom.width));
   url.searchParams.set('videoSizeCustom.height', String(mapped.videoSizeCustom.height));
   url.searchParams.set('dataTransport', 'websocket');
+  // Optimize game settings — Sunshine needs this to apply client resolution.
+  url.searchParams.set('sops', 'true');
   return `${url.pathname}${url.search}`;
 }
