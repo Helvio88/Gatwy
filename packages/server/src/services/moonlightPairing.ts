@@ -14,6 +14,19 @@ export interface MoonlightExtraConfig {
   paired?: boolean;
   bitrateKbps?: number;
   fps?: number;
+  /** `auto` = client-area size; otherwise `WIDTHxHEIGHT` (e.g. `1920x1080`). */
+  resolution?: string;
+}
+
+const RESOLUTION_RE = /^\d{3,5}x\d{3,5}$/i;
+
+/** Normalize stored/request resolution; unset → `auto`. */
+export function normalizeMoonlightResolution(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw.trim()) return 'auto';
+  const v = raw.trim().toLowerCase();
+  if (v === 'auto' || v === 'native') return 'auto';
+  if (RESOLUTION_RE.test(v)) return v;
+  return 'auto';
 }
 
 export interface StoredMoonlightPairing {

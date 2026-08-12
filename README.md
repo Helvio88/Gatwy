@@ -25,8 +25,7 @@ One container. Open your browser and connect.
 
 ## ✨ Highlights
 
-- **10 protocols** — RDP (WebAssembly), SSH, VNC, **Moonlight / Sunshine**, Telnet, SMB, SFTP, FTP, PostgreSQL, MySQL
-- **Moonlight PIN pairing** — Gatwy shows the 4-digit PIN; enter it in Sunshine; pairing survives restarts under `/app/data`
+- **10 protocols** — RDP (WebAssembly), SSH, VNC, Moonlight/Sunshine, Telnet, SMB, SFTP, FTP, PostgreSQL, MySQL
 - **Split-pane workspace** — unlimited sessions side by side with drag-and-drop tabs
 - **Session recording & audit** — encrypted RDP video, SSH asciinema, command-level audit log with auto-redacted passwords, file activity tracking
 - **Granular RBAC** — fine-grained permissions, custom roles, per-connection sharing, protocol-level access control (including `protocols.moonlight`)
@@ -79,14 +78,13 @@ npm install && npm run build && npm start
 
 ---
 
-## 🌙 Moonlight / Sunshine
+## Moonlight / Sunshine
 
-1. Create a connection under **Remote Control → Moonlight**.
-2. Host = Sunshine PC hostname/IP. Port = **47989** (GameStream HTTP; override in advanced fields if needed).
-3. Preferred app defaults to **Desktop**.
-4. Connect — if unpaired, Gatwy shows **Enter this PIN in Sunshine**.
-5. On the Sunshine host open the web UI (usually `https://<pc>:47990`) → PIN → enter the code.
-6. Streaming starts in a Gatwy tab (mouse/keyboard via the embedded viewer). Use **Forget pairing** to re-pair.
+1. Create a connection under Remote Control → Moonlight.
+2. Host = Sunshine PC hostname/IP. Port = 47989 (GameStream HTTP; override in advanced fields if needed).
+3. Preferred app defaults to Desktop. Resolution defaults to Auto (client area); fixed presets are available in the connection editor and session controls.
+4. Connect — if unpaired, enter the PIN Gatwy shows into the Sunshine web UI (usually `https://<pc>:47990`).
+5. Streaming starts in a Gatwy tab. Use Forget pairing in the session controls to re-pair. In Auto mode, resizing the browser/tab restarts the stream at the new viewport size so the host desktop follows.
 
 ### Sunshine firewall / ports
 
