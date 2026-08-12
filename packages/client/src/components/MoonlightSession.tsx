@@ -1776,7 +1776,7 @@ export function MoonlightSession({
               value={resolution}
               onChange={(e) => handleResolutionChange(e.target.value)}
               className="w-full bg-surface border border-border rounded-md px-1.5 py-1 text-[11px] text-text-primary focus:outline-none focus:border-accent"
-              title="Stream resolution requested from Sunshine"
+              title="Auto uses this pane’s size"
             >
               {ML_RESOLUTION_PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -1831,9 +1831,6 @@ export function MoonlightSession({
               title="FPS (applies on reconnect)"
             />
           </label>
-          <p className="text-[10px] text-text-secondary leading-relaxed">
-            Auto measures this pane exactly and asks Sunshine for that WxH. Fullscreen Auto fills the canvas; windowed smaller presets stay centered. Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
-          </p>
         </div>
 
         <button

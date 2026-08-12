@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.15
+
+### Moonlight session panel
+
+- Removed the long Auto / bitrate / FPS help paragraph from the right-hand session panel so controls stay reachable on short (mobile landscape) viewports. Resolution, touch, Mbps, and FPS controls are unchanged.
+
 ## 0.19.14
 
 ### Packaging
