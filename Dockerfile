@@ -1,5 +1,7 @@
 # Stage 1: Build
-FROM node:22-bookworm-slim AS builder
+# moonlight-web-stream glibc binaries need GLIBC_2.38+; bookworm is 2.36.
+# node:22-noble is not published — use Debian trixie (glibc ≥ 2.39).
+FROM node:22-trixie-slim AS builder
 
 WORKDIR /app
 
@@ -21,7 +23,7 @@ RUN npm run build --workspace=packages/client
 RUN npm run build --workspace=packages/server
 
 # Stage 2: Production
-FROM node:22-bookworm-slim
+FROM node:22-trixie-slim
 
 ARG TARGETARCH
 ARG MOONLIGHT_WEB_VERSION=v2.10.0
@@ -46,7 +48,11 @@ RUN set -eux; \
   mkdir -p /opt/moonlight-web; \
   tar -xzf /tmp/moonlight-web.tar.gz -C /opt/moonlight-web --strip-components=1; \
   chmod +x /opt/moonlight-web/web-server /opt/moonlight-web/streamer; \
-  rm -f /tmp/moonlight-web.tar.gz
+  rm -f /tmp/moonlight-web.tar.gz; \
+  ldd --version | head -1; \
+  /opt/moonlight-web/web-server -V \
+    || /opt/moonlight-web/web-server --help \
+    || /opt/moonlight-web/web-server help
 
 ENV MOONLIGHT_WEB_DIR=/opt/moonlight-web
 

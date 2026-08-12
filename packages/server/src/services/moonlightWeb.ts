@@ -119,10 +119,41 @@ function writeConfig(dir: string, binDir: string): string {
   return configPath;
 }
 
-async function waitForReady(timeoutMs = 20000): Promise<void> {
+function formatReadyFailure(
+  host: string,
+  port: number,
+  earlyStderr: string,
+  opts?: { code?: number | null; signal?: NodeJS.Signals | null; exited?: boolean },
+): Error {
+  const detail = earlyStderr.trim();
+  const parts = [
+    opts?.exited
+      ? `Moonlight web-server exited before becoming ready on ${host}:${port}`
+      : `Moonlight web-server did not become ready on ${host}:${port}`,
+  ];
+  if (opts?.code !== undefined && opts.code !== null) parts.push(`code=${opts.code}`);
+  if (opts?.signal) parts.push(`signal=${opts.signal}`);
+  const prefix = parts.join(' ');
+  return new Error(detail ? `${prefix}: ${detail}` : prefix);
+}
+
+async function waitForReady(
+  proc: ChildProcess,
+  getEarlyStderr: () => string,
+  timeoutMs = 20000,
+): Promise<void> {
   const { host, port } = bindHostPort();
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      // Allow stderr 'data' handlers a tick to flush loader errors (e.g. GLIBC).
+      await new Promise((r) => setTimeout(r, 50));
+      throw formatReadyFailure(host, port, getEarlyStderr(), {
+        exited: true,
+        code: proc.exitCode,
+        signal: proc.signalCode,
+      });
+    }
     try {
       await mlwRequest('GET', '/mlw/config.js');
       return;
@@ -130,7 +161,11 @@ async function waitForReady(timeoutMs = 20000): Promise<void> {
       await new Promise((r) => setTimeout(r, 250));
     }
   }
-  throw new Error(`Moonlight web-server did not become ready on ${host}:${port}`);
+  throw formatReadyFailure(host, port, getEarlyStderr(), {
+    exited: proc.exitCode !== null || proc.signalCode !== null,
+    code: proc.exitCode,
+    signal: proc.signalCode,
+  });
 }
 
 export function isMoonlightWebAvailable(): boolean {
@@ -162,6 +197,8 @@ export async function ensureMoonlightWeb(): Promise<void> {
     } catch { /* ignore */ }
 
     console.log(`[Moonlight] Starting web-server from ${binDir}`);
+    const earlyStderr: string[] = [];
+    let earlyStderrLen = 0;
     child = spawn(
       webServer,
       [
@@ -182,21 +219,28 @@ export async function ensureMoonlightWeb(): Promise<void> {
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );
+    const proc = child;
 
-    child.stdout?.on('data', (buf: Buffer) => {
+    proc.stdout?.on('data', (buf: Buffer) => {
       const line = buf.toString().trim();
       if (line) console.log(`[Moonlight] ${line}`);
     });
-    child.stderr?.on('data', (buf: Buffer) => {
-      const line = buf.toString().trim();
+    proc.stderr?.on('data', (buf: Buffer) => {
+      const text = buf.toString();
+      if (earlyStderrLen < 4096) {
+        const chunk = text.slice(0, 4096 - earlyStderrLen);
+        earlyStderr.push(chunk);
+        earlyStderrLen += chunk.length;
+      }
+      const line = text.trim();
       if (line) console.error(`[Moonlight] ${line}`);
     });
-    child.on('exit', (code, signal) => {
+    proc.on('exit', (code, signal) => {
       console.warn(`[Moonlight] web-server exited code=${code} signal=${signal}`);
-      child = null;
+      if (child === proc) child = null;
     });
 
-    await waitForReady();
+    await waitForReady(proc, () => earlyStderr.join(''));
     console.log('[Moonlight] web-server ready');
   })().finally(() => { starting = null; });
 
