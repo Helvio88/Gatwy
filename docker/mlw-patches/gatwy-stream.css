@@ -2,52 +2,58 @@
  * Gatwy chrome for embedded moonlight-web stream pages.
  * Neutralizes the cyan neon "Connecting" splash so the iframe matches
  * Gatwy / RDP session status (dark translucent, muted copy).
+ * Keep in sync with MLW_CHROME_STYLE in MoonlightSession.tsx (runtime inject).
  */
 
 /* Soften MLW accent tokens used by connecting UI */
 html.stream {
-  --accent-cyan: rgba(255, 255, 255, 0.45);
-  --accent-cyan-2: rgba(255, 255, 255, 0.55);
-  --accent-cyan-light: rgba(255, 255, 255, 0.65);
+  --accent-cyan: rgba(255, 255, 255, 0.4);
+  --accent-cyan-2: rgba(255, 255, 255, 0.5);
+  --accent-cyan-light: rgba(255, 255, 255, 0.6);
   --glow-cyan: none;
   --glow-cyan-bright: none;
   --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --text-1: rgba(255, 255, 255, 0.7);
+  --text-1: rgba(255, 255, 255, 0.65);
 }
 
-/* Connecting modal backdrop — quiet, not purple/cyan neon */
+/* Connecting modal backdrop — quiet, centered, not purple/cyan neon */
 .modal-background:not(.modal-disabled):has(.modal-video-connect),
 .modal-background:not(.modal-disabled):has(.host-loading-overlay) {
-  background-color: rgba(0, 0, 0, 0.55) !important;
-  backdrop-filter: blur(2px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(1px) !important;
 }
 
 .modal-background:not(.modal-disabled):has(.modal-video-connect) .modal-content,
 .modal-background:not(.modal-disabled):has(.host-loading-overlay) .modal-content {
-  background: rgba(18, 18, 20, 0.92) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55) !important;
-  color: rgba(255, 255, 255, 0.7) !important;
+  background: rgba(16, 16, 18, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
   width: auto !important;
-  max-width: min(320px, 86vw) !important;
+  max-width: min(280px, 84vw) !important;
   max-height: none !important;
-  margin: 38vh auto 0 !important;
-  padding: 16px 18px !important;
-  border-radius: 12px !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  border-radius: 10px !important;
   text-shadow: none !important;
+  overflow: hidden !important;
 }
 
 .modal-video-connect {
   align-items: center !important;
-  gap: 10px !important;
+  gap: 8px !important;
+  min-height: 0 !important;
 }
 
 .modal-video-connect > p,
 .modal-video-connect .textlike {
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 400 !important;
-  line-height: 1.4 !important;
-  color: rgba(255, 255, 255, 0.65) !important;
+  line-height: 1.35 !important;
+  color: rgba(255, 255, 255, 0.55) !important;
   text-shadow: none !important;
   text-align: center !important;
   margin: 0 !important;
@@ -57,27 +63,41 @@ html.stream {
 .modal-video-connect .modal-video-connect-options {
   width: 100%;
   justify-content: center !important;
-  gap: 8px !important;
-  margin-top: 4px !important;
+  gap: 6px !important;
+  margin-top: 2px !important;
+  min-height: 28px !important;
+}
+
+/* MLW appends Show logs first, Close second — hide Show logs during normal connect.
+   Reveal on hover/focus or once the debug panel is open (errors / manual expand). */
+.modal-video-connect:not(:has(.modal-video-connect-debug)) .modal-video-connect-options button:first-child {
+  display: none !important;
+}
+
+.modal-video-connect:hover:not(:has(.modal-video-connect-debug)) .modal-video-connect-options button:first-child,
+.modal-video-connect:focus-within:not(:has(.modal-video-connect-debug)) .modal-video-connect-options button:first-child,
+.modal-video-connect:has(.modal-video-connect-debug) .modal-video-connect-options button:first-child {
+  display: inline-flex !important;
 }
 
 .modal-video-connect .modal-video-connect-options button,
 .modal-video-connect button {
   background: transparent !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
   box-shadow: none !important;
   text-shadow: none !important;
   font-size: 11px !important;
   font-weight: 500 !important;
-  padding: 6px 10px !important;
+  padding: 5px 10px !important;
   border-radius: 8px !important;
+  margin: 0 !important;
 }
 
 .modal-video-connect .modal-video-connect-options button:hover,
 .modal-video-connect button:hover {
   background: rgba(255, 255, 255, 0.06) !important;
-  color: rgba(255, 255, 255, 0.8) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
   transform: none !important;
 }
 
@@ -85,7 +105,7 @@ html.stream {
   max-width: 100% !important;
   max-height: 28vh !important;
   font-size: 11px !important;
-  color: rgba(255, 255, 255, 0.45) !important;
+  color: rgba(255, 255, 255, 0.4) !important;
   text-shadow: none !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 8px;
@@ -94,34 +114,37 @@ html.stream {
 
 /* Host tile / loading overlay spinners */
 .host-element.connecting::before {
-  border: 2px solid rgba(255, 255, 255, 0.2) !important;
-  border-top-color: rgba(255, 255, 255, 0.75) !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin: -9px 0 0 -9px !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.16) !important;
+  border-top-color: rgba(255, 255, 255, 0.55) !important;
   box-shadow: none !important;
 }
 
 .host-loading-overlay {
-  background: rgba(0, 0, 0, 0.55) !important;
-  backdrop-filter: blur(2px) !important;
+  background: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(1px) !important;
 }
 
 .host-loading-spinner {
-  width: 22px !important;
-  height: 22px !important;
-  border: 2px solid rgba(255, 255, 255, 0.18) !important;
-  border-top-color: rgba(255, 255, 255, 0.75) !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.14) !important;
+  border-top-color: rgba(255, 255, 255, 0.55) !important;
   box-shadow: none !important;
 }
 
 .host-loading-text {
-  font-size: 13px !important;
-  color: rgba(255, 255, 255, 0.65) !important;
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.55) !important;
   text-shadow: none !important;
 }
 
 .host-loading-cancel {
   background: transparent !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
   box-shadow: none !important;
   text-shadow: none !important;
   font-size: 11px !important;
