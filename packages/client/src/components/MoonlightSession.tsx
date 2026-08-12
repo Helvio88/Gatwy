@@ -216,7 +216,37 @@ html.stream {
   pointer-events: none !important;
 }
 
-/* Fill iframe pane — kill pillarbox from contain + vmin centering. */
+/*
+ * Lock stream document: MLW body safe-area padding + min-height:100vh without
+ * overflow:hidden lets fixed fill grow past the iframe → scrollbars.
+ */
+html.stream,
+html.stream body,
+body.stream {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none !important;
+}
+html.stream::-webkit-scrollbar,
+html.stream body::-webkit-scrollbar,
+body.stream::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+#root,
+#input {
+  overflow: hidden !important;
+}
+
+/* Fill iframe pane — inset sizing (not 100%) so fill can’t exceed viewport. */
 .video-stream,
 video.video-stream,
 canvas.video-stream {
@@ -224,14 +254,17 @@ canvas.video-stream {
   inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   transform: none !important;
-  width: 100% !important;
-  height: 100% !important;
+  width: auto !important;
+  height: auto !important;
   max-width: none !important;
   max-height: none !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: fill !important;
+  box-sizing: border-box !important;
 }
 `;
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.8
+
+### Moonlight stream UI
+
+- Fixed iframe scrollbars after the 0.19.7 stream fill CSS. moonlight-web’s `body` still used safe-area padding + `min-height: 100vh` without `overflow: hidden`, so a fixed `width/height: 100%` video could grow past the iframe viewport.
+- Stream document is now clipped (`html.stream` / `body.stream` overflow hidden, zeroed margin/padding/min-height); video/canvas size via `inset: 0` with `width/height: auto` (fill behavior unchanged — no return to contain/pillarbox). Left sidebar stays hidden.
+- CSS kept in sync between Docker-baked `gatwy-stream.css` and runtime `MLW_CHROME_STYLE` inject. Gatwy session surface already used `overflow-hidden`.
+
 ## 0.19.7
 
 ### Moonlight stream UI
