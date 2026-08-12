@@ -82,7 +82,7 @@ npm install && npm run build && npm start
 
 1. Create a connection under Remote Control → Moonlight.
 2. Host = Sunshine PC hostname/IP. Port = 47989 (GameStream HTTP; override in advanced fields if needed).
-3. Preferred app defaults to Desktop. Resolution defaults to Auto (client area); fixed presets are available in the connection editor and session controls.
+3. Preferred app defaults to Desktop. Resolution defaults to Auto (client area); fixed presets are available in the connection editor and session controls. Touch mode defaults to point-and-drag (session panel).
 4. Connect — if unpaired, enter the PIN Gatwy shows into the Sunshine web UI (usually `https://<pc>:47990`).
 5. Streaming starts in a Gatwy tab. Use Forget pairing in the session controls to re-pair. In Auto mode, resizing the browser/tab restarts the stream at the new viewport size so the host desktop follows.
 

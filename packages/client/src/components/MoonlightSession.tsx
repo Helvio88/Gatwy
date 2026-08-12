@@ -10,6 +10,13 @@ import {
   sizesDiffer,
   snapStreamSize,
 } from '../lib/moonlightResolution';
+import {
+  ML_TOUCH_MODE_PRESETS,
+  defaultMlTouchMode,
+  normalizeMlTouchMode,
+  touchModeHelp,
+  type MlTouchMode,
+} from '../lib/moonlightTouch';
 
 type SessionStatus = 'connecting' | 'pairing' | 'streaming' | 'disconnected';
 
@@ -31,6 +38,7 @@ interface StatusResponse {
   bitrateKbps?: number;
   fps?: number;
   resolution?: string;
+  touchMode?: string;
   error?: string;
 }
 
@@ -43,6 +51,7 @@ interface SessionResponse {
   bitrateKbps: number;
   fps: number;
   resolution?: string;
+  touchMode?: string;
   needsPairing?: boolean;
   error?: string;
 }
@@ -277,6 +286,9 @@ body.stream {
   --stream-video-top: 0;
   overflow: hidden !important;
   overscroll-behavior: none !important;
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
@@ -299,6 +311,9 @@ body.stream::-webkit-scrollbar {
 video.video-stream,
 canvas.video-stream {
   overflow: hidden !important;
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 /* Quiet ALL MLW modals (FormModal etc.) — not only connecting. */
@@ -443,6 +458,71 @@ const MLW_GATWY_HELPER_SCRIPT = `
     return window.app || null;
   }
 
+  function rawVideoRect() {
+    var el = document.querySelector('video.video-stream, canvas.video-stream, .video-stream');
+    if (el && typeof el.getBoundingClientRect === 'function') {
+      return el.getBoundingClientRect();
+    }
+    return null;
+  }
+
+  /**
+   * Under html.gatwy-fullscreen, object-fit:fill stretches the video to the
+   * pane. MLW getStreamRectCorrected still letterbox-adjusts as if contain —
+   * wrap ViewerApp / renderer getStreamRect to return the raw video box.
+   */
+  function wrapGetStreamRect(obj) {
+    if (!obj || typeof obj.getStreamRect !== 'function' || obj.getStreamRect.__gatwyFillWrap) {
+      return false;
+    }
+    var orig = obj.getStreamRect.bind(obj);
+    function wrapped() {
+      try {
+        if (document.documentElement && document.documentElement.classList.contains('gatwy-fullscreen')) {
+          var raw = rawVideoRect();
+          if (raw) return raw;
+        }
+      } catch (e) {}
+      return orig();
+    }
+    wrapped.__gatwyFillWrap = true;
+    obj.getStreamRect = wrapped;
+    return true;
+  }
+
+  function patchStreamRect() {
+    var app = getApp();
+    wrapGetStreamRect(app);
+    try {
+      var stream = app && typeof app.getStream === 'function' ? app.getStream() : null;
+      var renderer = stream && typeof stream.getVideoRenderer === 'function'
+        ? stream.getVideoRenderer()
+        : null;
+      wrapGetStreamRect(renderer);
+    } catch (e) {}
+    return true;
+  }
+
+  function setTouchMode(mode) {
+    var app = getApp();
+    if (!app || typeof app.getInputConfig !== 'function' || typeof app.setInputConfig !== 'function') {
+      return false;
+    }
+    try {
+      var config = app.getInputConfig();
+      if (!config) return false;
+      config.touchMode = mode;
+      if (mode === 'localCursor') {
+        var sens = Number(config.localCursorSensitivity);
+        if (!isFinite(sens) || sens <= 0) config.localCursorSensitivity = 1;
+      }
+      app.setInputConfig(config);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function getScreenKeyboard() {
     var app = getApp();
     try {
@@ -513,6 +593,8 @@ const MLW_GATWY_HELPER_SCRIPT = `
   window.__gatwyMlw = {
     reparentHiddenKeyboard: reparentHiddenKeyboard,
     armPointerLock: armPointerLock,
+    patchStreamRect: patchStreamRect,
+    setTouchMode: setTouchMode,
     lockMouse: function() {
       reparentHiddenKeyboard();
       armPointerLock();
@@ -601,13 +683,23 @@ const MLW_GATWY_HELPER_SCRIPT = `
 
   function boot() {
     reparentHiddenKeyboard();
-    // Retry — ViewerApp / sidebar mount after stream.html modules load.
+    patchStreamRect();
+    // Retry — ViewerApp / sidebar / video renderer mount after stream.html modules load.
     var n = 0;
     var t = setInterval(function() {
       reparentHiddenKeyboard();
+      patchStreamRect();
       n += 1;
-      if (n >= 40 || (getApp() && getScreenKeyboard())) clearInterval(t);
+      if (n >= 80) clearInterval(t);
     }, 100);
+    try {
+      if (typeof MutationObserver !== 'undefined' && document.documentElement && !window.__gatwyRectObserver) {
+        var obs = new MutationObserver(function() { patchStreamRect(); });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+        window.__gatwyRectObserver = obs;
+        setTimeout(function() { try { obs.disconnect(); } catch (e) {} }, 30000);
+      }
+    } catch (e) {}
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
@@ -704,14 +796,16 @@ function parseCustomVk(raw: string): number | null {
   return null;
 }
 
-/** Write moonlight-web launch settings (bitrate/fps/size/sops) before (re)loading the iframe. */
+/** Write moonlight-web launch settings (bitrate/fps/size/sops/touch) before (re)loading the iframe. */
 function applyMlwSettings(
   bitrateKbps: number,
   fps: number,
   resolution: string,
   clientArea: { width: number; height: number } | null,
+  touchMode: string,
 ): { width: number; height: number } {
   const mapped = resolutionToMlwVideoSize(resolution, clientArea);
+  const mode = normalizeMlTouchMode(touchMode);
   try {
     const raw = localStorage.getItem('mlSettings');
     const settings = raw ? JSON.parse(raw) as Record<string, unknown> : {};
@@ -723,6 +817,11 @@ function applyMlwSettings(
     settings.enterFullscreenOnStreamStart = false;
     // Moonlight Optimize game settings — required for Sunshine client resolution.
     settings.sops = true;
+    settings.touchMode = mode;
+    if (mode === 'localCursor') {
+      const sens = Number(settings.localCursorSensitivity);
+      if (!Number.isFinite(sens) || sens <= 0) settings.localCursorSensitivity = 1;
+    }
     localStorage.setItem('mlSettings', JSON.stringify(settings));
   } catch { /* ignore */ }
   return mapped.videoSizeCustom;
@@ -741,6 +840,8 @@ type GatwyMlwHelpers = {
   isKeyboardVisible?: () => boolean;
   sendKey?: (keys: number | number[], modifiers?: number) => boolean;
   toggleStats?: () => boolean;
+  patchStreamRect?: () => boolean;
+  setTouchMode?: (mode: string) => boolean;
 };
 
 function getGatwyMlw(iframe: HTMLIFrameElement | null): GatwyMlwHelpers | null {
@@ -779,7 +880,9 @@ function injectIframeChrome(iframe: HTMLIFrameElement | null, session?: HTMLElem
       || (!!document.fullscreenElement && !!iframe && document.fullscreenElement.contains(iframe));
     syncIframeFullscreenClass(iframe, oursFs);
     // Ensure ScreenKeyboard textarea is outside the hidden sidebar.
-    getGatwyMlw(iframe)?.reparentHiddenKeyboard?.();
+    const helpers = getGatwyMlw(iframe);
+    helpers?.reparentHiddenKeyboard?.();
+    helpers?.patchStreamRect?.();
   } catch { /* cross-origin or not ready */ }
 }
 
@@ -846,6 +949,7 @@ export function MoonlightSession({
   const bitrateRef = useRef(20000);
   const fpsRef = useRef(60);
   const resolutionRef = useRef(ML_RESOLUTION_AUTO);
+  const touchModeRef = useRef<MlTouchMode>(defaultMlTouchMode());
 
   const [status, setStatus] = useState<SessionStatus>('connecting');
   const [errorMsg, setErrorMsg] = useState('');
@@ -858,6 +962,7 @@ export function MoonlightSession({
   const [bitrate, setBitrate] = useState(20000);
   const [fps, setFps] = useState(60);
   const [resolution, setResolution] = useState(ML_RESOLUTION_AUTO);
+  const [touchMode, setTouchMode] = useState<MlTouchMode>(defaultMlTouchMode);
   const [activeSizeLabel, setActiveSizeLabel] = useState('');
   const [reconnectCount, setReconnectCount] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -872,6 +977,7 @@ export function MoonlightSession({
   bitrateRef.current = bitrate;
   fpsRef.current = fps;
   resolutionRef.current = resolution;
+  touchModeRef.current = touchMode;
 
   function setAndNotify(s: SessionStatus) {
     setStatus(s);
@@ -882,6 +988,7 @@ export function MoonlightSession({
     bitrateKbps?: number;
     fps?: number;
     resolution?: string;
+    touchMode?: string;
   }) => {
     try {
       await fetch(`/api/v1/moonlight/${connectionId}/settings`, {
@@ -947,6 +1054,7 @@ export function MoonlightSession({
     resolution: string;
     bitrateKbps?: number;
     fps?: number;
+    touchMode?: string;
   }) => {
     const base = streamBasePathRef.current;
     if (!base || resizingRef.current) return;
@@ -955,13 +1063,15 @@ export function MoonlightSession({
     const resolution = normalizeMlResolution(opts.resolution);
     const bitrateKbps = opts.bitrateKbps ?? bitrateRef.current;
     const fps = opts.fps ?? fpsRef.current;
+    const touchMode = normalizeMlTouchMode(opts.touchMode ?? touchModeRef.current);
     // Keep refs aligned before await gaps so Auto resize / concurrent handlers see the intent.
     resolutionRef.current = resolution;
     bitrateRef.current = bitrateKbps;
     fpsRef.current = fps;
+    touchModeRef.current = touchMode;
     try {
       await stopIframeStream(iframeRef.current);
-      applyMlwSettings(bitrateKbps, fps, resolution, nextSize);
+      applyMlwSettings(bitrateKbps, fps, resolution, nextSize, touchMode);
       activeSizeRef.current = nextSize;
       setActiveSizeLabel(`${nextSize.width}×${nextSize.height}`);
       const url = appendStreamLaunchParams(base, {
@@ -1288,6 +1398,38 @@ export function MoonlightSession({
     });
   }, [persistSettings, relaunchStream, status]);
 
+  const handleTouchModeChange = useCallback((value: string) => {
+    const next = normalizeMlTouchMode(value);
+    setTouchMode(next);
+    touchModeRef.current = next;
+    void persistSettings({ touchMode: next });
+    // Keep mlSettings in sync so Auto relaunch / reconnect does not revert.
+    applyMlwSettings(
+      bitrateRef.current,
+      fpsRef.current,
+      resolutionRef.current,
+      activeSizeRef.current,
+      next,
+    );
+    if (status !== 'streaming') return;
+    injectIframeChrome(iframeRef.current, sessionRef.current);
+    const helpers = getGatwyMlw(iframeRef.current);
+    if (helpers?.setTouchMode?.(next)) return;
+    // ViewerApp.setInputConfig is the live path; if it is not ready, relaunch.
+    if (!streamBasePathRef.current) return;
+    const area = activeSizeRef.current ?? measureStreamPane({
+      session: sessionRef.current,
+      iframe: iframeRef.current,
+      surface: surfaceRef.current,
+    });
+    void relaunchStream({
+      width: area.width,
+      height: area.height,
+      resolution: resolutionRef.current,
+      touchMode: next,
+    });
+  }, [persistSettings, relaunchStream, status]);
+
   const startPairing = useCallback(async (signal: AbortSignal) => {
     setShowPairModal(true);
     setAndNotify('pairing');
@@ -1337,7 +1479,7 @@ export function MoonlightSession({
 
   const startStream = useCallback(async (
     signal: AbortSignal,
-    prefs: { bitrateKbps: number; fps: number; resolution: string },
+    prefs: { bitrateKbps: number; fps: number; resolution: string; touchMode: MlTouchMode },
   ) => {
     // Wait two frames so the session surface has layout before measuring Auto size.
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
@@ -1356,7 +1498,13 @@ export function MoonlightSession({
         surface: surfaceRef.current,
       });
     }
-    const launchSize = applyMlwSettings(prefs.bitrateKbps, prefs.fps, prefs.resolution, clientArea);
+    const launchSize = applyMlwSettings(
+      prefs.bitrateKbps,
+      prefs.fps,
+      prefs.resolution,
+      clientArea,
+      prefs.touchMode,
+    );
 
     const res = await fetch(`/api/v1/moonlight/${connectionId}/session`, {
       method: 'POST',
@@ -1366,6 +1514,7 @@ export function MoonlightSession({
         bitrateKbps: prefs.bitrateKbps,
         fps: prefs.fps,
         resolution: prefs.resolution,
+        touchMode: prefs.touchMode,
       }),
       signal,
     });
@@ -1384,6 +1533,11 @@ export function MoonlightSession({
       ? normalizeMlResolution(data.resolution)
       : prefs.resolution;
     setResolution(resolvedRes);
+    const resolvedTouch = data.touchMode
+      ? normalizeMlTouchMode(data.touchMode)
+      : prefs.touchMode;
+    setTouchMode(resolvedTouch);
+    touchModeRef.current = resolvedTouch;
     activeSizeRef.current = launchSize;
     setActiveSizeLabel(`${launchSize.width}×${launchSize.height}`);
 
@@ -1433,10 +1587,15 @@ export function MoonlightSession({
           resolution: st.resolution
             ? normalizeMlResolution(st.resolution)
             : resolutionRef.current,
+          touchMode: st.touchMode
+            ? normalizeMlTouchMode(st.touchMode)
+            : defaultMlTouchMode(),
         };
         setBitrate(prefs.bitrateKbps);
         setFps(prefs.fps);
         setResolution(prefs.resolution);
+        setTouchMode(prefs.touchMode);
+        touchModeRef.current = prefs.touchMode;
 
         if (!st.paired) {
           await startPairing(abort.signal);
@@ -1484,15 +1643,15 @@ export function MoonlightSession({
 
   return (
     <div ref={sessionRef} className="absolute inset-0 flex flex-col bg-black overflow-hidden">
-      <div ref={surfaceRef} className="flex-1 w-full relative overflow-hidden bg-black">
+      <div ref={surfaceRef} className="flex-1 w-full relative overflow-hidden bg-black touch-none select-none">
         {streamUrl && status === 'streaming' ? (
           <iframe
             key={`${streamUrl}::${streamEpoch}`}
             ref={iframeRef}
             title={`Moonlight ${connectionName}`}
             src={streamUrl}
-            className="absolute inset-0 w-full h-full border-0 overflow-hidden"
-            style={{ overflow: 'hidden' }}
+            className="absolute inset-0 w-full h-full border-0 overflow-hidden touch-none select-none"
+            style={{ overflow: 'hidden', touchAction: 'none' }}
             scrolling="no"
             allow="fullscreen; autoplay; clipboard-read; clipboard-write; gamepad"
             onLoad={() => {
@@ -1500,6 +1659,7 @@ export function MoonlightSession({
               // Attach pointerlock listeners after load (survives streamEpoch remounts).
               bindPointerLockSync(iframeRef.current);
               syncIframeInputState();
+              getGatwyMlw(iframeRef.current)?.patchStreamRect?.();
               // Correct Auto WxH once the iframe has a real content box.
               maybeCorrectAutoSize();
               // Restore focus into the stream surface for keyboard input
@@ -1622,6 +1782,22 @@ export function MoonlightSession({
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
             </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-text-primary">
+            <span>Touch</span>
+            <select
+              value={touchMode}
+              onChange={(e) => handleTouchModeChange(e.target.value)}
+              className="w-full bg-surface border border-border rounded-md px-1.5 py-1 text-[11px] text-text-primary focus:outline-none focus:border-accent"
+              title="How fingers control the host mouse"
+            >
+              {ML_TOUCH_MODE_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+            <span className="text-[10px] text-text-secondary leading-relaxed font-normal">
+              {touchModeHelp(touchMode)}
+            </span>
           </label>
           <label className="flex items-center justify-between gap-2 text-xs text-text-primary">
             <span>Mbps</span>
