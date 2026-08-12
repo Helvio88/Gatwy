@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.6
+
+### Moonlight / Sunshine
+
+- Fixed mid-session resolution changes that appeared to do nothing. Changing preset A → preset B called `relaunchStream` in the same event turn as `setResolution`, but `applyMlwSettings` read the still-stale `resolutionRef` and wrote the previous size into `mlSettings`. Relaunch now takes the intended resolution (and optional bitrate/fps) explicitly.
+- Stream launch always uses `videoSize: 'custom'` with exact width×height for every preset (720p/1080p/1440p/4K included), avoiding moonlight-web named-preset mapping ambiguity. Auto still measures the client area and passes `resolution: 'auto'`.
+- Connecting overlay further quietened (smaller centered card, softer backdrop, muted 12px copy, quieter spinner, Show logs hidden until hover/focus or debug panel open). Cancel remains available. CSS stays in sync between the Docker-baked patch and runtime iframe inject.
+
 ## 0.19.5
 
 ### Packaging

@@ -54,38 +54,35 @@ export function sizesDiffer(
   return Math.abs(a.width - b.width) >= threshold || Math.abs(a.height - b.height) >= threshold;
 }
 
+export type MlwVideoSizeFields = {
+  /** Always `custom` so MLW uses exact width/height (avoids preset mapping ambiguity). */
+  videoSize: 'custom';
+  videoSizeCustom: { width: number; height: number };
+};
+
 /**
  * Map Gatwy resolution choice → moonlight-web mlSettings fields.
  * Auto uses custom size from the measured client area (not CSS scale).
+ * Fixed presets always launch as `videoSize: 'custom'` + exact WxH so StartStream
+ * cannot pick a stale named preset while videoSizeCustom disagrees.
  */
 export function resolutionToMlwVideoSize(
   resolution: string,
   clientArea: { width: number; height: number } | null,
-): {
-  videoSize: '720p' | '1080p' | '1440p' | '4k' | 'custom' | 'native';
-  videoSizeCustom: { width: number; height: number };
-} {
+): MlwVideoSizeFields {
   const parsed = parseResolutionPreset(resolution);
   if (!parsed) {
     const size = snapStreamSize(clientArea?.width ?? 1920, clientArea?.height ?? 1080);
     return { videoSize: 'custom', videoSizeCustom: size };
   }
-  if (parsed.width === 1280 && parsed.height === 720) {
-    return { videoSize: '720p', videoSizeCustom: parsed };
-  }
-  if (parsed.width === 1920 && parsed.height === 1080) {
-    return { videoSize: '1080p', videoSizeCustom: parsed };
-  }
-  if (parsed.width === 2560 && parsed.height === 1440) {
-    return { videoSize: '1440p', videoSizeCustom: parsed };
-  }
-  if (parsed.width === 3840 && parsed.height === 2160) {
-    return { videoSize: '4k', videoSizeCustom: parsed };
-  }
-  return { videoSize: 'custom', videoSizeCustom: parsed };
+  return { videoSize: 'custom', videoSizeCustom: snapStreamSize(parsed.width, parsed.height) };
 }
 
-/** Append launch overrides (ignored by older MLW; used when query overrides exist). */
+/**
+ * Append launch overrides for diagnostics / older MLW builds.
+ * MLW v2.10.0 ignores videoSize query params (size comes from localStorage mlSettings);
+ * keep them for debugging only — do not treat as the correctness path.
+ */
 export function appendStreamLaunchParams(
   streamPath: string,
   opts: {
