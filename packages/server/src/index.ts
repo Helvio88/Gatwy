@@ -181,7 +181,7 @@ async function main() {
   const server = https.createServer({ cert, key }, app);
 
   // Gate /mlw through Gatwy session + protocols.moonlight, then reverse-proxy
-  // to the bundled moonlight-web-stream runtime.
+  // to the optional moonlight-web-stream runtime (when binaries are present).
   app.use('/mlw', (req, res, next) => {
     authRequired(req, res, () => {
       if (!req.user || !userHasPermission(req.user.userId, 'protocols.moonlight')) {
@@ -235,7 +235,7 @@ async function main() {
         console.warn('[Moonlight] Deferred start failed:', err instanceof Error ? err.message : err);
       });
     } else {
-      console.warn('[Moonlight] Runtime binaries not found — Moonlight sessions will be unavailable until installed.');
+      console.warn('[Moonlight] Runtime binaries not found — Moonlight sessions unavailable until INCLUDE_MOONLIGHT=1, MOONLIGHT_DOWNLOAD=1, or MOONLIGHT_WEB_DIR is set.');
     }
   });
 }

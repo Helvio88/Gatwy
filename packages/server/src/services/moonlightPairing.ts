@@ -87,6 +87,53 @@ export function mergeMoonlightExtra(
   return { ...existing, ...patch };
 }
 
+const DEFAULT_BITRATE_KBPS = 20000;
+const DEFAULT_FPS = 60;
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+/** Apply a settings API body (bitrate / fps / resolution / touchMode) onto stored extra. */
+export function applyMoonlightSettingsPatch(
+  extra: MoonlightExtraConfig,
+  body: Record<string, unknown> | null | undefined,
+): MoonlightExtraConfig {
+  const patch: Partial<MoonlightExtraConfig> = {};
+  const src = body && typeof body === 'object' ? body : {};
+
+  if (typeof src.bitrateKbps === 'number' && Number.isFinite(src.bitrateKbps)) {
+    patch.bitrateKbps = clampInt(src.bitrateKbps, 1000, 150000);
+  }
+  if (typeof src.fps === 'number' && Number.isFinite(src.fps)) {
+    patch.fps = clampInt(src.fps, 15, 240);
+  }
+  if (src.resolution !== undefined) {
+    patch.resolution = normalizeMoonlightResolution(src.resolution);
+  }
+  if (src.touchMode !== undefined) {
+    patch.touchMode = normalizeMoonlightTouchMode(src.touchMode);
+  }
+
+  return mergeMoonlightExtra(extra, patch);
+}
+
+export function moonlightSettingsResponse(extra: MoonlightExtraConfig): {
+  ok: true;
+  bitrateKbps: number;
+  fps: number;
+  resolution: string;
+  touchMode: MoonlightTouchMode;
+} {
+  return {
+    ok: true,
+    bitrateKbps: extra.bitrateKbps ?? DEFAULT_BITRATE_KBPS,
+    fps: extra.fps ?? DEFAULT_FPS,
+    resolution: normalizeMoonlightResolution(extra.resolution),
+    touchMode: normalizeMoonlightTouchMode(extra.touchMode),
+  };
+}
+
 export function saveEncryptedPairing(data: StoredMoonlightPairing): void {
   fs.mkdirSync(pairingDir(), { recursive: true });
   const payload = encrypt(JSON.stringify(data));
