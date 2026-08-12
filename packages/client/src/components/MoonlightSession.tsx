@@ -208,6 +208,31 @@ html.stream {
   background: rgba(255, 255, 255, 0.06) !important;
   box-shadow: none !important;
 }
+
+/* Hide MLW left ViewerSidebar chrome (Gatwy right panel owns controls). */
+.sidebar-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Fill iframe pane — kill pillarbox from contain + vmin centering. */
+.video-stream,
+video.video-stream,
+canvas.video-stream {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  object-fit: fill !important;
+}
 `;
 
 /**
@@ -232,6 +257,156 @@ const MLW_SOPS_SCRIPT = `
     return originalSend.call(this, data);
   };
   WebSocket.prototype.__gatwySopsWrapped = true;
+})();
+`;
+
+/**
+ * Same-origin helpers for Gatwy’s right panel. Reparents ScreenKeyboard’s
+ * hidden textarea out of the CSS-hidden .sidebar-overlay so focus still works.
+ */
+const MLW_GATWY_HELPER_SCRIPT = `
+(function(){
+  if (window.__gatwyMlwInstalled) return;
+  window.__gatwyMlwInstalled = true;
+
+  function getApp() {
+    return window.app || null;
+  }
+
+  function getScreenKeyboard() {
+    var app = getApp();
+    try {
+      return app && app.sidebar && typeof app.sidebar.getScreenKeyboard === 'function'
+        ? app.sidebar.getScreenKeyboard()
+        : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function reparentHiddenKeyboard() {
+    var kb = getScreenKeyboard();
+    var el = null;
+    try {
+      el = kb && typeof kb.getHiddenElement === 'function' ? kb.getHiddenElement() : null;
+    } catch (e) {}
+    if (!el) {
+      el = document.querySelector('textarea.hiddeninput, .hiddeninput');
+    }
+    if (el && el.parentElement !== document.body) {
+      try { document.body.appendChild(el); } catch (e) {}
+    }
+  }
+
+  function armPointerLock() {
+    var armed = false;
+    function onPointerDown() {
+      if (armed) return;
+      armed = true;
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      var app = getApp();
+      if (app && typeof app.requestPointerLock === 'function') {
+        try { app.requestPointerLock(true); } catch (e) {}
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown, true);
+    // Also try immediately (works when caller already has activation in this doc).
+    var app = getApp();
+    if (app && typeof app.requestPointerLock === 'function') {
+      try {
+        var p = app.requestPointerLock(true);
+        if (p && typeof p.then === 'function') {
+          p.then(function() {
+            document.removeEventListener('pointerdown', onPointerDown, true);
+          }).catch(function() {});
+        }
+      } catch (e) {}
+    }
+  }
+
+  window.__gatwyMlw = {
+    reparentHiddenKeyboard: reparentHiddenKeyboard,
+    armPointerLock: armPointerLock,
+    lockMouse: function() {
+      reparentHiddenKeyboard();
+      armPointerLock();
+      return true;
+    },
+    unlockMouse: function() {
+      var app = getApp();
+      if (app && typeof app.exitPointerLock === 'function') {
+        try { app.exitPointerLock(); return true; } catch (e) { return false; }
+      }
+      try { document.exitPointerLock(); return true; } catch (e) { return false; }
+    },
+    isPointerLocked: function() {
+      return !!document.pointerLockElement;
+    },
+    showKeyboard: function() {
+      reparentHiddenKeyboard();
+      var kb = getScreenKeyboard();
+      if (!kb) return false;
+      try { kb.show(); return true; } catch (e) { return false; }
+    },
+    hideKeyboard: function() {
+      var kb = getScreenKeyboard();
+      if (!kb) return false;
+      try { kb.hide(); return true; } catch (e) { return false; }
+    },
+    toggleKeyboard: function() {
+      reparentHiddenKeyboard();
+      var kb = getScreenKeyboard();
+      if (!kb) return false;
+      try {
+        if (kb.isVisible()) kb.hide();
+        else kb.show();
+        return true;
+      } catch (e) { return false; }
+    },
+    isKeyboardVisible: function() {
+      var kb = getScreenKeyboard();
+      try { return !!(kb && kb.isVisible()); } catch (e) { return false; }
+    },
+    sendKeycode: function() {
+      var app = getApp();
+      try {
+        var btn = app && app.sidebar && app.sidebar.sendKeycodeButton;
+        if (btn && typeof btn.click === 'function') {
+          btn.click();
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    },
+    toggleStats: function() {
+      var app = getApp();
+      try {
+        var stream = app && typeof app.getStream === 'function' ? app.getStream() : null;
+        var stats = stream && typeof stream.getStats === 'function' ? stream.getStats() : null;
+        if (stats && typeof stats.toggle === 'function') {
+          stats.toggle();
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+  };
+
+  function boot() {
+    reparentHiddenKeyboard();
+    // Retry — ViewerApp / sidebar mount after stream.html modules load.
+    var n = 0;
+    var t = setInterval(function() {
+      reparentHiddenKeyboard();
+      n += 1;
+      if (n >= 40 || (getApp() && getScreenKeyboard())) clearInterval(t);
+    }, 100);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
 })();
 `;
 
@@ -270,6 +445,30 @@ function applyMlwSettings(
   return mapped.videoSizeCustom;
 }
 
+/** Same-origin helpers exposed on the /mlw iframe window. */
+type GatwyMlwHelpers = {
+  reparentHiddenKeyboard?: () => void;
+  armPointerLock?: () => void;
+  lockMouse?: () => boolean;
+  unlockMouse?: () => boolean;
+  isPointerLocked?: () => boolean;
+  showKeyboard?: () => boolean;
+  hideKeyboard?: () => boolean;
+  toggleKeyboard?: () => boolean;
+  isKeyboardVisible?: () => boolean;
+  sendKeycode?: () => boolean;
+  toggleStats?: () => boolean;
+};
+
+function getGatwyMlw(iframe: HTMLIFrameElement | null): GatwyMlwHelpers | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return ((iframe?.contentWindow as any)?.__gatwyMlw as GatwyMlwHelpers) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function injectIframeChrome(iframe: HTMLIFrameElement | null): void {
   try {
     const doc = iframe?.contentDocument;
@@ -287,6 +486,14 @@ function injectIframeChrome(iframe: HTMLIFrameElement | null): void {
       // Prefer earliest execution; head may already have finished parsing.
       doc.documentElement.appendChild(script);
     }
+    if (!doc.getElementById('gatwy-mlw-helper-script')) {
+      const script = doc.createElement('script');
+      script.id = 'gatwy-mlw-helper-script';
+      script.textContent = MLW_GATWY_HELPER_SCRIPT;
+      doc.documentElement.appendChild(script);
+    }
+    // Ensure ScreenKeyboard textarea is outside the hidden sidebar.
+    getGatwyMlw(iframe)?.reparentHiddenKeyboard?.();
   } catch { /* cross-origin or not ready */ }
 }
 
@@ -307,6 +514,15 @@ async function stopIframeStream(iframe: HTMLIFrameElement | null): Promise<void>
 
 function toggleIframeStats(iframe: HTMLIFrameElement | null): boolean {
   try {
+    const helpers = getGatwyMlw(iframe);
+    if (helpers?.toggleStats?.()) return true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const app = (iframe?.contentWindow as any)?.app;
+    const stats = app?.getStream?.()?.getStats?.();
+    if (stats?.toggle) {
+      stats.toggle();
+      return true;
+    }
     const doc = iframe?.contentDocument;
     if (!doc) return false;
     const buttons = Array.from(doc.querySelectorAll('button'));
@@ -359,6 +575,8 @@ export function MoonlightSession({
   const [panelOpen, setPanelOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [statsOn, setStatsOn] = useState(false);
+  const [mouseLocked, setMouseLocked] = useState(false);
+  const [keyboardOn, setKeyboardOn] = useState(false);
 
   bitrateRef.current = bitrate;
   fpsRef.current = fps;
@@ -527,6 +745,67 @@ export function MoonlightSession({
     }
   }, []);
 
+  const syncIframeInputState = useCallback(() => {
+    const helpers = getGatwyMlw(iframeRef.current);
+    if (!helpers) return;
+    try {
+      setMouseLocked(!!helpers.isPointerLocked?.());
+      setKeyboardOn(!!helpers.isKeyboardVisible?.());
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleLockMouse = useCallback(() => {
+    injectIframeChrome(iframeRef.current);
+    const helpers = getGatwyMlw(iframeRef.current);
+    if (!helpers) return;
+    if (helpers.isPointerLocked?.()) {
+      helpers.unlockMouse?.();
+      setMouseLocked(false);
+      return;
+    }
+    // Pointer Lock needs user activation in the iframe document. Arm next
+    // stream click as fallback, then close the panel so the stream is clickable.
+    helpers.lockMouse?.();
+    setPanelOpen(false);
+    try { iframeRef.current?.contentWindow?.focus(); } catch { /* ignore */ }
+    // Poll briefly — lock may complete on this call or the next stream click.
+    let n = 0;
+    const t = setInterval(() => {
+      syncIframeInputState();
+      n += 1;
+      if (n >= 20) clearInterval(t);
+    }, 150);
+  }, [syncIframeInputState]);
+
+  const handleToggleKeyboard = useCallback(() => {
+    injectIframeChrome(iframeRef.current);
+    const helpers = getGatwyMlw(iframeRef.current);
+    if (!helpers?.toggleKeyboard?.()) return;
+    setKeyboardOn(!!helpers.isKeyboardVisible?.());
+  }, []);
+
+  const handleSendKeycode = useCallback(() => {
+    injectIframeChrome(iframeRef.current);
+    getGatwyMlw(iframeRef.current)?.sendKeycode?.();
+    setPanelOpen(false);
+  }, []);
+
+  // Keep Lock mouse label in sync with iframe pointer-lock state.
+  useEffect(() => {
+    if (status !== 'streaming') {
+      setMouseLocked(false);
+      setKeyboardOn(false);
+      return;
+    }
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc) return;
+    const onChange = () => syncIframeInputState();
+    doc.addEventListener('pointerlockchange', onChange);
+    syncIframeInputState();
+    return () => doc.removeEventListener('pointerlockchange', onChange);
+  }, [status, streamUrl, streamEpoch, syncIframeInputState]);
+
   const handleResolutionChange = useCallback((value: string) => {
     const next = normalizeMlResolution(value);
     setResolution(next);
@@ -661,6 +940,8 @@ export function MoonlightSession({
         setStreamUrl(null);
         setShowPairModal(false);
         setStatsOn(false);
+        setMouseLocked(false);
+        setKeyboardOn(false);
         activeSizeRef.current = null;
         streamBasePathRef.current = null;
 
@@ -741,6 +1022,7 @@ export function MoonlightSession({
             allow="fullscreen; autoplay; clipboard-read; clipboard-write; gamepad"
             onLoad={() => {
               injectIframeChrome(iframeRef.current);
+              syncIframeInputState();
               // Restore focus into the stream surface for keyboard input
               try { iframeRef.current?.contentWindow?.focus(); } catch { /* ignore */ }
             }}
@@ -895,7 +1177,7 @@ export function MoonlightSession({
             />
           </label>
           <p className="text-[10px] text-text-secondary leading-relaxed">
-            Auto tracks the tab size (host resize). Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
+            Auto matches the pane size (preferred — crisp fill). Fixed presets in a differently-shaped pane may stretch slightly. Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
           </p>
         </div>
 
@@ -923,6 +1205,36 @@ export function MoonlightSession({
 
         <button
           type="button"
+          onClick={handleLockMouse}
+          disabled={status !== 'streaming'}
+          className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-hover text-text-primary text-sm transition-colors text-left w-full disabled:opacity-40 disabled:pointer-events-none"
+          title={mouseLocked ? 'Release pointer lock' : 'Lock mouse (click stream if prompted)'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="6" y="3" width="12" height="14" rx="6" />
+            <path d="M12 17v4" />
+            <path d="M8 21h8" />
+            <circle cx="12" cy="9" r="1" fill="currentColor" />
+          </svg>
+          {mouseLocked ? 'Unlock mouse' : 'Lock mouse'}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleToggleKeyboard}
+          disabled={status !== 'streaming'}
+          className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-hover text-text-primary text-sm transition-colors text-left w-full disabled:opacity-40 disabled:pointer-events-none"
+          title="Toggle on-screen keyboard"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="6" width="20" height="12" rx="2" />
+            <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" />
+          </svg>
+          {keyboardOn ? 'Hide keyboard' : 'On-screen keyboard'}
+        </button>
+
+        <button
+          type="button"
           onClick={handleToggleStats}
           disabled={status !== 'streaming'}
           className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-hover text-text-primary text-sm transition-colors text-left w-full disabled:opacity-40 disabled:pointer-events-none"
@@ -935,6 +1247,20 @@ export function MoonlightSession({
             <path d="M16 17v-5" />
           </svg>
           {statsOn ? 'Hide stats' : 'Show stats'}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSendKeycode}
+          disabled={status !== 'streaming'}
+          className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-hover text-text-primary text-sm transition-colors text-left w-full disabled:opacity-40 disabled:pointer-events-none"
+          title="Send a special keycode to the host"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 7h16v10H4z" />
+            <path d="M8 11h.01M12 11h.01M16 11h.01M9 15h6" />
+          </svg>
+          Send keycode
         </button>
 
         <button

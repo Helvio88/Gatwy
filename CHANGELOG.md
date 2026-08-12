@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.7
+
+### Moonlight stream UI
+
+- Removed the embedded moonlight-web left `.sidebar-overlay` (peeking arrow + ViewerSidebar). Session controls live only on Gatwy’s RDP-style right panel.
+- Stream video/canvas now fills the iframe pane (`object-fit: fill`, no vmin centering) so horizontal pillarbox bars are gone. Fixed presets in a differently-shaped pane may stretch slightly; **Auto** (exact client-area WxH) remains preferred for a crisp 1:1 fill.
+- Right panel gains **Lock mouse**, **On-screen keyboard**, and **Send keycode** (same-origin calls into ViewerApp / ScreenKeyboard). Stats toggle still works with the left sidebar hidden. Floating MLW keyboard hide button remains available while the soft keyboard is open.
+- CSS kept in sync between Docker-baked `gatwy-stream.css` and runtime `MLW_CHROME_STYLE` inject. A small iframe helper reparents ScreenKeyboard’s hidden textarea so focus still works with the overlay `display: none`.
+
 ## 0.19.6
 
 ### Moonlight / Sunshine

@@ -158,3 +158,38 @@ html.stream {
   background: rgba(255, 255, 255, 0.06) !important;
   box-shadow: none !important;
 }
+
+/*
+ * Hide MLW ViewerSidebar chrome completely (no left peeking arrow/tab).
+ * Gatwy’s right panel owns session controls. ScreenKeyboard’s hidden
+ * textarea is reparented to <body> by the runtime inject so focus still works
+ * when this overlay is display:none.
+ */
+.sidebar-overlay {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/*
+ * Fill the iframe pane — kill pillarbox/letterbox bars from MLW’s default
+ * centered vmin + object-fit:contain. Prefer fill over cover (cover crops
+ * desktop edges). Fixed presets in a differently-shaped pane may stretch
+ * slightly; Auto matching the client area stays preferred.
+ */
+.video-stream,
+video.video-stream,
+canvas.video-stream {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  object-fit: fill !important;
+}
