@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.19.1
+
+### Packaging
+
+- Docker base image moved from `node:22-bookworm-slim` (glibc 2.36) to `node:22-trixie-slim` so bundled moonlight-web-stream binaries (GLIBC_2.38/2.39) can load.
+- Image build now runs `web-server -V`/`help` after downloading moonlight-web, so wrong glibc/arch fails at build time instead of at session start.
+
+### Moonlight / Sunshine
+
+- If the moonlight-web process exits before ready, Gatwy fails fast and surfaces early stderr (e.g. missing GLIBC symbols) in the error shown to the UI.
+
 ## 0.19.0
 
 ### Moonlight / Sunshine
