@@ -83,7 +83,7 @@ const MLW_CHROME_STYLE = `
   pointer-events: none !important;
 }
 
-/* Neutralize cyan neon Connecting splash (ConnectionInfoModal / host-loading).
+/* Match RDP connecting chrome: mute MLW accent colors on the splash.
  * !important is required — standard.css hardcodes #00d4ff / #00f5ff / #00ffff. */
 html.stream,
 html.stream body,
@@ -1776,7 +1776,7 @@ export function MoonlightSession({
               value={resolution}
               onChange={(e) => handleResolutionChange(e.target.value)}
               className="w-full bg-surface border border-border rounded-md px-1.5 py-1 text-[11px] text-text-primary focus:outline-none focus:border-accent"
-              title="Stream resolution requested from Sunshine"
+              title="Auto uses this pane’s size"
             >
               {ML_RESOLUTION_PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -1831,9 +1831,6 @@ export function MoonlightSession({
               title="FPS (applies on reconnect)"
             />
           </label>
-          <p className="text-[10px] text-text-secondary leading-relaxed">
-            Auto measures this pane exactly and asks Sunshine for that WxH. Fullscreen Auto fills the canvas; windowed smaller presets stay centered. Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
-          </p>
         </div>
 
         <button
@@ -1920,7 +1917,7 @@ export function MoonlightSession({
             }}
             disabled={status !== 'streaming'}
             className="w-full bg-surface border border-border rounded-md px-1.5 py-1 text-[11px] text-text-primary focus:outline-none focus:border-accent disabled:opacity-40"
-            title="Send a key to the host (Gatwy-native — does not open moonlight-web)"
+            title="Send a key to the host"
           >
             {ML_SEND_KEY_PRESETS.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>

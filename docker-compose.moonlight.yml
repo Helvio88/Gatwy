@@ -1,0 +1,24 @@
+# Optional override: embed moonlight-web-stream (GPL-3.0) at image build time.
+# Default docker-compose.yml does not include this.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.moonlight.yml up --build -d
+#
+# Runtime alternative (no rebuild): keep the default image and set
+# MOONLIGHT_DOWNLOAD=1 so entrypoint fetches MLW into the container (also GPL).
+services:
+  gatwy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INCLUDE_MOONLIGHT: "1"
+    ports:
+      - "7443:7443"
+      # Optional: WebRTC UDP range if you switch off the default WebSocket transport
+      # - "40000-40100:40000-40100/udp"
+    environment:
+      - MOONLIGHT_WEB_DIR=/opt/moonlight-web
+      - MOONLIGHT_WEBRTC_PORT_MIN=40000
+      - MOONLIGHT_WEBRTC_PORT_MAX=40100
+      # Advertise this host's LAN/public IP for WebRTC ICE (optional)
+      # - MOONLIGHT_WEBRTC_NAT_1TO1_HOST=192.168.1.10

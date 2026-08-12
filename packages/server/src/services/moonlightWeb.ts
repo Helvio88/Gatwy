@@ -168,10 +168,25 @@ async function waitForReady(
   });
 }
 
+export const MOONLIGHT_UNAVAILABLE_BODY = {
+  error: 'Moonlight runtime not available in this installation',
+  available: false as const,
+};
+
+export function moonlightBinariesPresent(dir: string | undefined | null): boolean {
+  if (!dir) return false;
+  return fs.existsSync(path.join(dir, 'web-server'))
+    && fs.existsSync(path.join(dir, 'streamer'));
+}
+
 export function isMoonlightWebAvailable(): boolean {
-  const binDir = resolveBinaryDir();
-  return fs.existsSync(path.join(binDir, 'web-server'))
-    && fs.existsSync(path.join(binDir, 'streamer'));
+  return moonlightBinariesPresent(resolveBinaryDir());
+}
+
+/** Status/session JSON when the optional moonlight-web runtime is missing. */
+export function moonlightUnavailablePayload(available: boolean): typeof MOONLIGHT_UNAVAILABLE_BODY | null {
+  if (available) return null;
+  return MOONLIGHT_UNAVAILABLE_BODY;
 }
 
 export async function ensureMoonlightWeb(): Promise<void> {
@@ -181,7 +196,7 @@ export async function ensureMoonlightWeb(): Promise<void> {
   starting = (async () => {
     if (!isMoonlightWebAvailable()) {
       throw new Error(
-        'Moonlight web-server binary not found. Rebuild the Docker image or set MOONLIGHT_WEB_DIR.',
+        'Moonlight web-server binary not found. Build with INCLUDE_MOONLIGHT=1, set MOONLIGHT_DOWNLOAD=1, or point MOONLIGHT_WEB_DIR at a moonlight-web-stream install.',
       );
     }
 

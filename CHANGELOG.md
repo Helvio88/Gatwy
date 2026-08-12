@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.19.15
+
+### Moonlight session panel
+
+- Removed the long Auto / bitrate / FPS help paragraph from the right-hand session panel so controls stay reachable on short (mobile landscape) viewports. Resolution, touch, Mbps, and FPS controls are unchanged.
+
+## 0.19.14
+
+### Packaging
+
+- Default Docker image no longer embeds moonlight-web-stream (GPL-3.0). `INCLUDE_MOONLIGHT` defaults to `0`; `docker compose build` matches that.
+- Opt in at build time with `--build-arg INCLUDE_MOONLIGHT=1` or `docker-compose.moonlight.yml`.
+- Opt in at runtime with `MOONLIGHT_DOWNLOAD=1` (entrypoint fetch) or `scripts/fetch-moonlight-web.sh`. Silent download is not used.
+- When binaries are missing, Moonlight reports `available: false` (HTTP 503) and other protocols keep working.
+- `THIRD_PARTY.md` documents the optional GPL component. Gatwy `LICENSE` is unchanged (MIT / Copyright kotoxie).
+
+### Docs
+
+- README matches upstream voice: 9 protocols as the default set; Moonlight/Sunshine is an optional protocol when enabled.
+
+### Tests
+
+- Unit tests for Moonlight resolution/touch helpers, settings merge/validation, and unavailable runtime when binaries are missing.
+
 ## 0.19.13
 
 ### Moonlight touch
@@ -135,7 +159,7 @@
 
 - Docker image now bundles moonlight-web `web-server` + `streamer` binaries.
 - Compose example builds from the git repo (`docker compose up --build`).
-- README updated for this Helvio88/Gatwy fork and Moonlight networking notes.
+- README updated for Moonlight networking notes.
 
 ## 0.18.0
 

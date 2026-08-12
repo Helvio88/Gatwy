@@ -91,8 +91,9 @@ export function appendStreamLaunchParams(
     resolution: string;
     clientArea: { width: number; height: number } | null;
   },
+  origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
 ): string {
-  const url = new URL(streamPath, window.location.origin);
+  const url = new URL(streamPath, origin);
   const mapped = resolutionToMlwVideoSize(opts.resolution, opts.clientArea);
   url.searchParams.set('bitrate', String(opts.bitrateKbps));
   url.searchParams.set('fps', String(opts.fps));

@@ -1,6 +1,8 @@
 # Stage 1: Build
 # moonlight-web-stream glibc binaries need GLIBC_2.38+; bookworm is 2.36.
-# node:22-noble is not published — use Debian trixie (glibc ≥ 2.39).
+# node:22-noble is not published — use Debian trixie (glibc ≥ 2.39) so the
+# optional Moonlight runtime can load when INCLUDE_MOONLIGHT=1 or
+# MOONLIGHT_DOWNLOAD=1. Default builds do not embed those binaries.
 FROM node:22-trixie-slim AS builder
 
 WORKDIR /app
@@ -26,42 +28,38 @@ RUN npm run build --workspace=packages/server
 FROM node:22-trixie-slim
 
 ARG TARGETARCH
+ARG INCLUDE_MOONLIGHT=0
 ARG MOONLIGHT_WEB_VERSION=v2.10.0
 
 WORKDIR /app
 
-# Runtime deps: curl/ca-certs for healthcheck, gosu for privilege drop,
-# openssl for TLS helpers. moonlight-web-stream is a glibc binary.
+# Runtime deps: curl/ca-certs for healthcheck (and optional MLW fetch),
+# gosu for privilege drop, openssl for TLS helpers.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl gosu openssl \
   && rm -rf /var/lib/apt/lists/*
 
-# Bundle moonlight-web-stream (server-side Moonlight client + WebRTC/WS streamer)
-RUN set -eux; \
-  case "$TARGETARCH" in \
-    amd64) ML_ARCH=x86_64-unknown-linux-gnu ;; \
-    arm64) ML_ARCH=aarch64-unknown-linux-gnu ;; \
-    *) echo "Unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
-  esac; \
-  curl -fsSL -o /tmp/moonlight-web.tar.gz \
-    "https://github.com/MrCreativ3001/moonlight-web-stream/releases/download/${MOONLIGHT_WEB_VERSION}/moonlight-web-${ML_ARCH}.tar.gz"; \
-  mkdir -p /opt/moonlight-web; \
-  tar -xzf /tmp/moonlight-web.tar.gz -C /opt/moonlight-web --strip-components=1; \
-  chmod +x /opt/moonlight-web/web-server /opt/moonlight-web/streamer; \
-  rm -f /tmp/moonlight-web.tar.gz; \
-  ldd --version | head -1; \
-  /opt/moonlight-web/web-server -V \
-    || /opt/moonlight-web/web-server --help \
-    || /opt/moonlight-web/web-server help
+# Gatwy chrome patches + fetch helper. Patches are MIT Gatwy code; the
+# moonlight-web-stream binaries (GPL-3.0) are only downloaded when opted in.
+COPY docker/mlw-patches/ /opt/gatwy/mlw-patches/
+COPY scripts/fetch-moonlight-web.sh /usr/local/bin/fetch-moonlight-web
+RUN chmod +x /usr/local/bin/fetch-moonlight-web /opt/gatwy/mlw-patches/patch-static.sh
 
-# Gatwy chrome: quiet connecting overlay, force sops on StartStream, fullscreen fill hit-test
-COPY docker/mlw-patches/ /tmp/gatwy-mlw-patches/
-# Explicit sh: slim image has no bash; script is POSIX + sed/node only.
-RUN chmod +x /tmp/gatwy-mlw-patches/patch-static.sh \
-  && sh /tmp/gatwy-mlw-patches/patch-static.sh /opt/moonlight-web/static /tmp/gatwy-mlw-patches \
-  && rm -rf /tmp/gatwy-mlw-patches
-
-ENV MOONLIGHT_WEB_DIR=/opt/moonlight-web
+# Default INCLUDE_MOONLIGHT=0: do not embed GPL binaries.
+# Opt in: docker build --build-arg INCLUDE_MOONLIGHT=1
+# Explicit sh: slim image has no bash; fetch script is POSIX.
+RUN set -eu; \
+  flag=$(printf '%s' "$INCLUDE_MOONLIGHT" | tr '[:upper:]' '[:lower:]'); \
+  case "$flag" in \
+    1|true|yes) \
+      echo "INCLUDE_MOONLIGHT=$INCLUDE_MOONLIGHT — downloading moonlight-web-stream ${MOONLIGHT_WEB_VERSION}"; \
+      TARGETARCH="$TARGETARCH" MOONLIGHT_WEB_VERSION="$MOONLIGHT_WEB_VERSION" \
+        fetch-moonlight-web /opt/moonlight-web "$MOONLIGHT_WEB_VERSION" "$TARGETARCH"; \
+      ;; \
+    *) \
+      echo "Skipping moonlight-web-stream (INCLUDE_MOONLIGHT=$INCLUDE_MOONLIGHT). Moonlight sessions will report available: false until opted in."; \
+      ;; \
+  esac
 
 # Copy package files and install production deps only
 COPY package.json package-lock.json* ./
@@ -76,7 +74,8 @@ COPY --from=builder /app/packages/server/dist packages/server/dist/
 COPY --from=builder /app/packages/client/dist packages/client/dist/
 
 # Pre-create data directory with correct ownership BEFORE declaring VOLUME.
-RUN mkdir -p /app/data && chown -R node:node /app /opt/moonlight-web
+RUN mkdir -p /app/data && chown -R node:node /app \
+  && if [ -d /opt/moonlight-web ]; then chown -R node:node /opt/moonlight-web; fi
 
 # Copy entrypoint — runs as root, chowns /app/data, then drops to node user
 COPY entrypoint.sh /entrypoint.sh

@@ -5,6 +5,7 @@ import type { Duplex } from 'stream';
 import {
   ensureMoonlightWeb,
   isMoonlightWebAvailable,
+  MOONLIGHT_UNAVAILABLE_BODY,
   moonlightProxyHeader,
   moonlightUpstream,
 } from '../services/moonlightWeb.js';
@@ -54,7 +55,7 @@ export function setupMoonlightProxy(server: Server, app: import('express').Expre
   // HTTP proxy for /mlw/*
   app.use(PREFIX, async (req, res) => {
     if (!isMoonlightWebAvailable()) {
-      res.status(503).json({ error: 'Moonlight runtime not available' });
+      res.status(503).json(MOONLIGHT_UNAVAILABLE_BODY);
       return;
     }
 

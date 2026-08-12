@@ -13,13 +13,16 @@ import {
   mlwGetHost,
   mlwListApps,
   mlwPair,
+  MOONLIGHT_UNAVAILABLE_BODY,
   readPairInfoFromStorage,
   restorePairInfoToStorage,
 } from '../services/moonlightWeb.js';
 import {
+  applyMoonlightSettingsPatch,
   deleteEncryptedPairing,
   loadEncryptedPairing,
   mergeMoonlightExtra,
+  moonlightSettingsResponse,
   normalizeMoonlightResolution,
   normalizeMoonlightTouchMode,
   parseMoonlightExtra,
@@ -62,6 +65,12 @@ function saveExtra(connectionId: string, extra: MoonlightExtraConfig): void {
     `UPDATE connections SET extra_config_json = ?, updated_at = datetime('now') WHERE id = ?`,
     [JSON.stringify(extra), connectionId],
   );
+}
+
+function rejectIfMoonlightUnavailable(res: Response): boolean {
+  if (isMoonlightWebAvailable()) return false;
+  res.status(503).json(MOONLIGHT_UNAVAILABLE_BODY);
+  return true;
 }
 
 async function ensureHost(conn: ConnRow, extra: MoonlightExtraConfig): Promise<{ hostId: number; extra: MoonlightExtraConfig }> {
@@ -118,13 +127,7 @@ router.get('/:id/status', async (req: Request, res: Response) => {
   const conn = getAccessibleMoonlightConn(req, paramId(req));
   if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
 
-  if (!isMoonlightWebAvailable()) {
-    res.status(503).json({
-      error: 'Moonlight runtime not available in this installation',
-      available: false,
-    });
-    return;
-  }
+  if (rejectIfMoonlightUnavailable(res)) return;
 
   try {
     let extra = parseMoonlightExtra(conn.extra_config_json);
@@ -173,32 +176,12 @@ router.put('/:id/settings', (req: Request, res: Response) => {
   const conn = getAccessibleMoonlightConn(req, paramId(req));
   if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
 
-  let extra = parseMoonlightExtra(conn.extra_config_json);
-  const patch: Partial<MoonlightExtraConfig> = {};
-
-  if (typeof req.body?.bitrateKbps === 'number' && Number.isFinite(req.body.bitrateKbps)) {
-    patch.bitrateKbps = Math.max(1000, Math.min(150000, Math.round(req.body.bitrateKbps)));
-  }
-  if (typeof req.body?.fps === 'number' && Number.isFinite(req.body.fps)) {
-    patch.fps = Math.max(15, Math.min(240, Math.round(req.body.fps)));
-  }
-  if (req.body?.resolution !== undefined) {
-    patch.resolution = normalizeMoonlightResolution(req.body.resolution);
-  }
-  if (req.body?.touchMode !== undefined) {
-    patch.touchMode = normalizeMoonlightTouchMode(req.body.touchMode);
-  }
-
-  extra = mergeMoonlightExtra(extra, patch);
+  const extra = applyMoonlightSettingsPatch(
+    parseMoonlightExtra(conn.extra_config_json),
+    req.body as Record<string, unknown>,
+  );
   saveExtra(conn.id, extra);
-
-  res.json({
-    ok: true,
-    bitrateKbps: extra.bitrateKbps ?? 20000,
-    fps: extra.fps ?? 60,
-    resolution: normalizeMoonlightResolution(extra.resolution),
-    touchMode: normalizeMoonlightTouchMode(extra.touchMode),
-  });
+  res.json(moonlightSettingsResponse(extra));
 });
 
 // ── POST /:id/pair ───────────────────────────────────────────────
@@ -206,6 +189,7 @@ router.put('/:id/settings', (req: Request, res: Response) => {
 router.post('/:id/pair', async (req: Request, res: Response) => {
   const conn = getAccessibleMoonlightConn(req, paramId(req));
   if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
+  if (rejectIfMoonlightUnavailable(res)) return;
 
   const clientIp = resolveClientIp(req);
   const sessionId = uuid();
@@ -289,6 +273,7 @@ router.post('/:id/pair', async (req: Request, res: Response) => {
 router.delete('/:id/pairing', async (req: Request, res: Response) => {
   const conn = getAccessibleMoonlightConn(req, paramId(req));
   if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
+  if (rejectIfMoonlightUnavailable(res)) return;
 
   try {
     await ensureMoonlightWeb();
@@ -322,6 +307,7 @@ router.delete('/:id/pairing', async (req: Request, res: Response) => {
 router.get('/:id/apps', async (req: Request, res: Response) => {
   const conn = getAccessibleMoonlightConn(req, paramId(req));
   if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
+  if (rejectIfMoonlightUnavailable(res)) return;
 
   try {
     const extra = parseMoonlightExtra(conn.extra_config_json);
@@ -341,6 +327,7 @@ router.get('/:id/apps', async (req: Request, res: Response) => {
 router.post('/:id/session', async (req: Request, res: Response) => {
   const conn = getAccessibleMoonlightConn(req, paramId(req));
   if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
+  if (rejectIfMoonlightUnavailable(res)) return;
 
   try {
     let extra = parseMoonlightExtra(conn.extra_config_json);

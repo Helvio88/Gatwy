@@ -1,7 +1,6 @@
 /*
  * Gatwy chrome for embedded moonlight-web stream pages.
- * Neutralizes the cyan neon "Connecting" splash so the iframe matches
- * Gatwy / RDP session status (dark translucent, muted copy).
+ * Match RDP session status (dark translucent, muted copy).
  * Keep in sync with MLW_CHROME_STYLE in MoonlightSession.tsx (runtime inject).
  */
 
@@ -28,7 +27,7 @@ body.stream {
   background-image: none !important;
 }
 
-/* Kill the blue cyber gradient during connect / reconnect. */
+/* Solid black backdrop during connect / reconnect (no MLW gradient). */
 html.stream body::before,
 body.stream::before {
   background: #000 !important;
