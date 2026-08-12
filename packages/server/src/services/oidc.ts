@@ -29,6 +29,22 @@ interface OidcConfig {
   scope: string;
 }
 
+type TokenAuthMethod = 'client_secret_basic' | 'client_secret_post';
+
+// Env OIDC_TOKEN_AUTH_METHOD overrides the UI setting. Accepts basic|post|client_secret_*.
+function resolveTokenAuthMethod(): TokenAuthMethod {
+  const raw = (
+    process.env.OIDC_TOKEN_AUTH_METHOD ||
+    getSetting('auth.oidc_token_auth_method') ||
+    'client_secret_basic'
+  )
+    .trim()
+    .toLowerCase();
+
+  if (raw === 'client_secret_post' || raw === 'post') return 'client_secret_post';
+  return 'client_secret_basic';
+}
+
 function getOidcConfig(): OidcConfig | null {
   const providerUrl = getSetting('auth.oidc_provider_url');
   const clientId = getSetting('auth.oidc_client_id');
@@ -115,19 +131,28 @@ export async function handleOidcCallback(
   let accessToken: string;
   let idTokenClaims: Record<string, unknown>;
   try {
+    const tokenAuth = resolveTokenAuthMethod();
+    const tokenBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: cfg.redirectUri,
+    });
+    const tokenHeaders: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+
+    if (tokenAuth === 'client_secret_post') {
+      tokenBody.set('client_id', cfg.clientId);
+      tokenBody.set('client_secret', cfg.clientSecret);
+    } else {
+      tokenHeaders.Authorization =
+        'Basic ' + Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString('base64');
+    }
+
     const tokenRes = await fetch(tokenEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: 'Basic ' + Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString('base64'),
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: cfg.redirectUri,
-        client_id: cfg.clientId,
-        client_secret: cfg.clientSecret,
-      }).toString(),
+      headers: tokenHeaders,
+      body: tokenBody.toString(),
     });
 
     if (!tokenRes.ok) {

@@ -718,6 +718,14 @@ function runMigrations() {
         try { database.run('ALTER TABLE users ADD COLUMN mfa_method TEXT'); } catch { /* already exists */ }
       },
     },
+    {
+      version: 17,
+      run: (database: Database) => {
+        // OIDC token endpoint auth method
+        database.run(`INSERT OR IGNORE INTO settings (key, value) VALUES
+          ('auth.oidc_token_auth_method', 'client_secret_basic')`);
+      },
+    },
   ];
 
   for (const migration of migrations) {

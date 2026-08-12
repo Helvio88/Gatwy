@@ -24,6 +24,7 @@ interface AuthSettings {
   'auth.oidc_admin_group_claim': string;
   'auth.oidc_admin_group_value': string;
   'auth.oidc_button_label': string;
+  'auth.oidc_token_auth_method': string;
 }
 
 const DEFAULTS: AuthSettings = {
@@ -48,6 +49,7 @@ const DEFAULTS: AuthSettings = {
   'auth.oidc_admin_group_claim': '',
   'auth.oidc_admin_group_value': '',
   'auth.oidc_button_label': 'Sign in with SSO',
+  'auth.oidc_token_auth_method': 'client_secret_basic',
 };
 
 export function AuthProvidersSettings() {
@@ -294,6 +296,16 @@ export function AuthProvidersSettings() {
               </Field>
               <Field label="Scope" hint="Space-separated OIDC scopes">
                 <input className="w-full px-3 py-2 bg-surface border border-border rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm" value={settings['auth.oidc_scope']} onChange={(e) => set('auth.oidc_scope', e.target.value)} placeholder="openid email profile" />
+              </Field>
+              <Field label="Token Endpoint Auth Method" hint="Must match your identity provider. Env OIDC_TOKEN_AUTH_METHOD overrides this.">
+                <select
+                  className="w-full px-3 py-2 bg-surface border border-border rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+                  value={settings['auth.oidc_token_auth_method'] || 'client_secret_basic'}
+                  onChange={(e) => set('auth.oidc_token_auth_method', e.target.value)}
+                >
+                  <option value="client_secret_basic">client_secret_basic (HTTP Basic)</option>
+                  <option value="client_secret_post">client_secret_post (form body)</option>
+                </select>
               </Field>
             </div>
 

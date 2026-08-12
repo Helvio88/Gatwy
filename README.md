@@ -77,6 +77,7 @@ Open **`https://<YOUR_IP>:7443`** — on first launch you'll be prompted to crea
 | `PORT` | `7443` | HTTPS port |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | *(auto)* | Custom TLS certificate & key paths |
 | `DATA_DIR` | `/app/data` | Database, certs, recordings, and logs |
+| `OIDC_TOKEN_AUTH_METHOD` | `client_secret_basic` | OIDC token endpoint client auth. Use `client_secret_basic` (or `basic`) or `client_secret_post` (or `post`). |
 
 > ⚠️ If no encryption key env var is set, Gatwy auto-generates one at `/app/data/encryption.key` with a warning banner. Fine for home-lab — not recommended for production.
 
