@@ -69,16 +69,19 @@ function quarantineCorruptDb(reason: string): void {
   }
 }
 
-function isIntegrityOk(database: Database): boolean {
+/** Returns null if OK, otherwise a short reason string. */
+function integrityFailureReason(database: Database): string | null {
   try {
     const check = database.exec('PRAGMA integrity_check');
-    return (
+    const ok =
       check.length > 0
       && check[0].values.length > 0
-      && check[0].values[0][0] === 'ok'
-    );
-  } catch {
-    return false;
+      && check[0].values[0][0] === 'ok';
+    return ok ? null : 'PRAGMA integrity_check failed';
+  } catch (e) {
+    // sql.js often constructs a Database from bad bytes without throwing;
+    // the first PRAGMA/query then surfaces "malformed" / "not a database".
+    return (e as Error).message || 'PRAGMA integrity_check threw';
   }
 }
 
@@ -88,16 +91,20 @@ function openOrRecoverDatabase(SQL: any): Database {
     return new SQL.Database();
   }
 
+  let database: Database | undefined;
   try {
     const fileBuffer = fs.readFileSync(config.dbPath);
-    const database = new SQL.Database(fileBuffer) as Database;
-    if (!isIntegrityOk(database)) {
+    database = new SQL.Database(fileBuffer) as Database;
+    const failure = integrityFailureReason(database);
+    if (failure) {
       try { database.close(); } catch { /* ignore */ }
-      quarantineCorruptDb('PRAGMA integrity_check failed');
+      database = undefined;
+      quarantineCorruptDb(failure);
       return new SQL.Database();
     }
     return database;
   } catch (e) {
+    try { database?.close(); } catch { /* ignore */ }
     quarantineCorruptDb((e as Error).message || 'open failed');
     return new SQL.Database();
   }
