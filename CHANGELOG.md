@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.4
+
+### Moonlight / Sunshine
+
+- Connecting overlay inside the embedded `/mlw` iframe no longer uses moonlight-web’s huge cyan neon splash. Gatwy injects (and Docker-patches) quiet chrome: dark translucent panel, muted “Connecting…” copy, subtle gray/white spinner — aligned with RDP session status.
+- Stream start now forces Moonlight **Optimize game settings** (`sops: true`) so Sunshine can apply `dd_resolution_option=auto` / client width×height. Applied via `mlSettings`, WebSocket `StartStream.settings` wrap, and a build-time patch of moonlight-web `static/stream/index.js`.
+- Width/height from Auto and presets still flow into `StartStream.settings` as before; sops is enabled by default for Gatwy sessions (no MLW UI toggle required).
+- **Host still required:** in Sunshine → Audio/Video, keep output resolution on **client** / **automatic**. If that is disabled, the host will not resize even with sops on.
+
 ## 0.19.3
 
 ### Reliability / DB

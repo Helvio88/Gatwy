@@ -49,8 +49,8 @@ interface SessionResponse {
 
 const RESIZE_DEBOUNCE_MS = 220;
 
-/** Injected into the same-origin /mlw iframe to quiet the default stats HUD. */
-const MLW_STATS_STYLE = `
+/** Injected into the same-origin /mlw iframe: quiet stats + Gatwy-style connecting chrome. */
+const MLW_CHROME_STYLE = `
 .video-stats {
   color: rgba(255, 255, 255, 0.55) !important;
   text-shadow: none !important;
@@ -72,6 +72,124 @@ const MLW_STATS_STYLE = `
   max-width: min(42vw, 360px) !important;
   pointer-events: none !important;
 }
+
+/* Neutralize cyan neon Connecting splash (ConnectionInfoModal / host-loading). */
+html.stream {
+  --accent-cyan: rgba(255, 255, 255, 0.45);
+  --accent-cyan-2: rgba(255, 255, 255, 0.55);
+  --accent-cyan-light: rgba(255, 255, 255, 0.65);
+  --glow-cyan: none;
+  --glow-cyan-bright: none;
+}
+.modal-background:not(.modal-disabled):has(.modal-video-connect),
+.modal-background:not(.modal-disabled):has(.host-loading-overlay) {
+  background-color: rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(2px) !important;
+}
+.modal-background:not(.modal-disabled):has(.modal-video-connect) .modal-content,
+.modal-background:not(.modal-disabled):has(.host-loading-overlay) .modal-content {
+  background: rgba(18, 18, 20, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  width: auto !important;
+  max-width: min(320px, 86vw) !important;
+  max-height: none !important;
+  margin: 38vh auto 0 !important;
+  padding: 16px 18px !important;
+  border-radius: 12px !important;
+  text-shadow: none !important;
+}
+.modal-video-connect {
+  align-items: center !important;
+  gap: 10px !important;
+}
+.modal-video-connect > p,
+.modal-video-connect .textlike {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.4 !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  text-shadow: none !important;
+  text-align: center !important;
+  margin: 0 !important;
+}
+.modal-video-connect .modal-video-connect-options {
+  width: 100%;
+  justify-content: center !important;
+  gap: 8px !important;
+}
+.modal-video-connect .modal-video-connect-options button,
+.modal-video-connect button {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+}
+.modal-video-connect .modal-video-connect-debug {
+  font-size: 11px !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+  text-shadow: none !important;
+}
+.host-element.connecting::before {
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+  border-top-color: rgba(255, 255, 255, 0.75) !important;
+  box-shadow: none !important;
+}
+.host-loading-overlay {
+  background: rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(2px) !important;
+}
+.host-loading-spinner {
+  width: 22px !important;
+  height: 22px !important;
+  border: 2px solid rgba(255, 255, 255, 0.18) !important;
+  border-top-color: rgba(255, 255, 255, 0.75) !important;
+  box-shadow: none !important;
+}
+.host-loading-text {
+  font-size: 13px !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  text-shadow: none !important;
+}
+.host-loading-cancel {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-size: 11px !important;
+}
+`;
+
+/**
+ * Force StartStream.settings.sops = true (Moonlight "Optimize game settings").
+ * Sunshine applies dd_resolution_option=auto / client width×height only when sops is on.
+ */
+const MLW_SOPS_SCRIPT = `
+(function(){
+  if (typeof WebSocket === 'undefined') return;
+  if (WebSocket.prototype.__gatwySopsWrapped) return;
+  var originalSend = WebSocket.prototype.send;
+  WebSocket.prototype.send = function(data) {
+    try {
+      if (typeof data === 'string' && data.indexOf('StartStream') !== -1) {
+        var msg = JSON.parse(data);
+        if (msg && msg.StartStream && msg.StartStream.settings) {
+          msg.StartStream.settings.sops = true;
+          data = JSON.stringify(msg);
+        }
+      }
+    } catch (e) {}
+    return originalSend.call(this, data);
+  };
+  WebSocket.prototype.__gatwySopsWrapped = true;
+})();
 `;
 
 function mapStatus(s: SessionStatus): 'connecting' | 'connected' | 'disconnected' {
@@ -85,7 +203,7 @@ function measureClientArea(el: HTMLElement | null): { width: number; height: num
   return snapStreamSize(el.clientWidth || 1920, el.clientHeight || 1080);
 }
 
-/** Write moonlight-web launch settings (bitrate/fps/size) before (re)loading the iframe. */
+/** Write moonlight-web launch settings (bitrate/fps/size/sops) before (re)loading the iframe. */
 function applyMlwSettings(
   bitrateKbps: number,
   fps: number,
@@ -102,6 +220,8 @@ function applyMlwSettings(
     settings.videoSize = mapped.videoSize;
     settings.videoSizeCustom = mapped.videoSizeCustom;
     settings.enterFullscreenOnStreamStart = false;
+    // Moonlight Optimize game settings — required for Sunshine client resolution.
+    settings.sops = true;
     localStorage.setItem('mlSettings', JSON.stringify(settings));
   } catch { /* ignore */ }
   return mapped.videoSizeCustom;
@@ -111,11 +231,19 @@ function injectIframeChrome(iframe: HTMLIFrameElement | null): void {
   try {
     const doc = iframe?.contentDocument;
     if (!doc?.head) return;
-    if (doc.getElementById('gatwy-mlw-stats-style')) return;
-    const style = doc.createElement('style');
-    style.id = 'gatwy-mlw-stats-style';
-    style.textContent = MLW_STATS_STYLE;
-    doc.head.appendChild(style);
+    if (!doc.getElementById('gatwy-mlw-chrome-style')) {
+      const style = doc.createElement('style');
+      style.id = 'gatwy-mlw-chrome-style';
+      style.textContent = MLW_CHROME_STYLE;
+      doc.head.appendChild(style);
+    }
+    if (!doc.getElementById('gatwy-mlw-sops-script')) {
+      const script = doc.createElement('script');
+      script.id = 'gatwy-mlw-sops-script';
+      script.textContent = MLW_SOPS_SCRIPT;
+      // Prefer earliest execution; head may already have finished parsing.
+      doc.documentElement.appendChild(script);
+    }
   } catch { /* cross-origin or not ready */ }
 }
 
@@ -697,7 +825,7 @@ export function MoonlightSession({
             />
           </label>
           <p className="text-[10px] text-text-secondary leading-relaxed">
-            Auto tracks the tab size (host resize). Bitrate / FPS apply on reconnect.
+            Auto tracks the tab size (host resize). Bitrate / FPS apply on reconnect. Sunshine must use client/auto resolution.
           </p>
         </div>
 

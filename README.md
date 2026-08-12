@@ -86,6 +86,8 @@ npm install && npm run build && npm start
 4. Connect — if unpaired, enter the PIN Gatwy shows into the Sunshine web UI (usually `https://<pc>:47990`).
 5. Streaming starts in a Gatwy tab. Use Forget pairing in the session controls to re-pair. In Auto mode, resizing the browser/tab restarts the stream at the new viewport size so the host desktop follows.
 
+Gatwy enables Moonlight **Optimize game settings** (`sops`) on every stream start so Sunshine can honor the client resolution. On the Sunshine PC, Audio/Video → resolution should remain **client** / **automatic** (not a fixed host mode).
+
 ### Sunshine firewall / ports
 
 On the Sunshine PC, allow at least:
