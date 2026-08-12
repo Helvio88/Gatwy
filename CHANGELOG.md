@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.3
+
+### Reliability / DB
+
+- sql.js persistence no longer uses `PRAGMA journal_mode = WAL` (not meaningful for full-DB file export); uses `MEMORY` instead.
+- Database saves are atomic: write to a temp file, fsync, then rename over the primary path so a mid-write kill cannot truncate/`malformed` the live DB.
+- On open, a malformed or integrity-check-failed DB is quarantined to `${dbPath}.corrupt-<timestamp>` (plus any `-wal`/`-shm` leftovers), then Gatwy starts a fresh empty DB and runs migrations — avoiding fatal startup crash-loops.
+- Backup restore (`restoreDbFromBytes`) also persists via the same atomic save path.
+
 ## 0.19.2
 
 ### Moonlight UI polish
