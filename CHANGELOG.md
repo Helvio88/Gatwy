@@ -5,6 +5,7 @@
 ### Moonlight stream UI
 
 - Stream video/canvas uses **contain + center** instead of stretch-fill. When the stream is smaller than the pane, it letterboxes/pillarboxes with black bars and stays centered horizontally and vertically. **Auto** (matching client area) still looks full. Overflow lock from 0.19.8/0.19.9 kept — no `100vmin` mins, no scrollbar regress. CSS synced in Docker-baked `gatwy-stream.css` and runtime `MLW_CHROME_STYLE`.
+- **Fullscreen Auto remeasure:** on `fullscreenchange` (enter or exit), wait for layout (2× rAF + short settle), remeasure the stream surface / iframe client box, and relaunch with the new even WxH when it differs from `activeSizeRef` so Sunshine’s intrinsic size matches the fullscreen pane — contain shows no letterbox bars. Cancels any mid-transition ResizeObserver debounce that still held the pre-fullscreen box. Fixed presets stay centered (not stretch-filled).
 - **Lock mouse** panel label stays in sync when ESC (or OS) exits pointer lock: listeners bind on iframe `onLoad` (not before navigation), `__gatwyMlw` posts lock state to the parent, and a light poll while locked refreshes the UI so the button flips back to **Lock mouse** without reopening the panel. Unlock via the panel still calls `exitPointerLock`.
 
 ## 0.19.9

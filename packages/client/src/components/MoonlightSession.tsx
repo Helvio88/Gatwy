@@ -816,17 +816,11 @@ export function MoonlightSession({
   const toggleFullscreen = useCallback(() => {
     const el = sessionRef.current;
     if (!el) return;
-    if (document.fullscreenElement) {
+    if (document.fullscreenElement === el) {
       void document.exitFullscreen();
-    } else {
+    } else if (!document.fullscreenElement) {
       void el.requestFullscreen().catch(() => undefined);
     }
-  }, []);
-
-  useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFsChange);
-    return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
   // Auto-open panel briefly when streaming starts (matches RDP).
@@ -888,6 +882,81 @@ export function MoonlightSession({
 
   const statusRef = useRef(status);
   statusRef.current = status;
+
+  /**
+   * After enter/exit fullscreen, wait for layout then (Auto only) relaunch so
+   * Sunshine’s intrinsic size matches the new pane — contain then shows no bars.
+   * ResizeObserver alone can measure the pre-transition box and leave letterboxing.
+   */
+  useEffect(() => {
+    let raf1 = 0;
+    let raf2 = 0;
+    let settleTimer = 0;
+    let wasOursFullscreen = false;
+
+    const clearPending = () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      if (settleTimer) window.clearTimeout(settleTimer);
+      raf1 = 0;
+      raf2 = 0;
+      settleTimer = 0;
+    };
+
+    const remeasureAutoAfterFullscreen = () => {
+      const session = sessionRef.current;
+      const fsEl = document.fullscreenElement;
+      const oursNow = !!session && !!fsEl && (fsEl === session || session.contains(fsEl));
+      const oursExiting = !fsEl && wasOursFullscreen;
+      wasOursFullscreen = oursNow;
+      setIsFullscreen(oursNow);
+
+      // Enter (ours) or exit (we were fullscreen) — ignore other elements' fullscreen.
+      if (!oursNow && !oursExiting) return;
+      if (resolutionRef.current !== ML_RESOLUTION_AUTO) return;
+      if (statusRef.current !== 'streaming') return;
+
+      // Drop any mid-transition ResizeObserver debounce that captured the old box.
+      if (resizeTimer.current) {
+        clearTimeout(resizeTimer.current);
+        resizeTimer.current = null;
+      }
+
+      const attempt = (retriesLeft: number) => {
+        if (resolutionRef.current !== ML_RESOLUTION_AUTO) return;
+        if (statusRef.current !== 'streaming') return;
+        const next = measureClientArea(iframeRef.current ?? surfaceRef.current);
+        const prev = activeSizeRef.current;
+        if (prev && !sizesDiffer(prev, next, 2)) return;
+        // Another relaunch in flight (e.g. ResizeObserver) — retry after the lock.
+        if (resizingRef.current) {
+          if (retriesLeft <= 0) return;
+          settleTimer = window.setTimeout(() => attempt(retriesLeft - 1), 560);
+          return;
+        }
+        void relaunchStream({
+          width: next.width,
+          height: next.height,
+          resolution: ML_RESOLUTION_AUTO,
+        });
+      };
+
+      clearPending();
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          // One short settle after paint so clientWidth matches the fullscreen pane.
+          settleTimer = window.setTimeout(() => attempt(2), 50);
+        });
+      });
+    };
+
+    // Document-level (bubbles from session element); single listener avoids double fire.
+    document.addEventListener('fullscreenchange', remeasureAutoAfterFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', remeasureAutoAfterFullscreen);
+      clearPending();
+    };
+  }, [relaunchStream]);
 
   // Debounced client-area resize → host resolution change (Auto mode only).
   useEffect(() => {
