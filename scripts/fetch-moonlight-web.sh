@@ -8,6 +8,9 @@
 #   fetch-moonlight-web [dest] [version] [arch]
 #   MOONLIGHT_WEB_DIR=/opt/moonlight-web MOONLIGHT_WEB_VERSION=v2.10.0 fetch-moonlight-web
 #
+# dest defaults to /opt/moonlight-web. The Gatwy entrypoint calls this when
+# MOONLIGHT_DOWNLOAD=1; no extra env vars are required for that path.
+#
 # arch: Docker TARGETARCH (amd64|arm64) or uname -m (x86_64|aarch64).
 set -eu
 
@@ -39,20 +42,36 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 URL="https://github.com/MrCreativ3001/moonlight-web-stream/releases/download/${VERSION}/moonlight-web-${ML_ARCH}.tar.gz"
-TMP_TGZ="$(mktemp)"
-trap 'rm -f "$TMP_TGZ"' EXIT
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Downloading ${URL}"
-curl -fsSL -o "$TMP_TGZ" "$URL"
+curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
+  --connect-timeout 15 --max-time 180 \
+  -o "$TMP_DIR/mlw.tar.gz" "$URL"
 
-mkdir -p "$DEST"
-tar -xzf "$TMP_TGZ" -C "$DEST" --strip-components=1
-chmod +x "$DEST/web-server" "$DEST/streamer"
+EXTRACT="$TMP_DIR/extract"
+mkdir -p "$EXTRACT"
+tar -xzf "$TMP_DIR/mlw.tar.gz" -C "$EXTRACT" --strip-components=1
 
-if [ -x "$DEST/web-server" ]; then
-  "$DEST/web-server" -V \
-    || "$DEST/web-server" --help \
-    || "$DEST/web-server" help \
+# Release layout is package/{web-server,streamer,static}. If strip-components
+# was a no-op (flat archive) or left an extra package/ dir, flatten it.
+if [ ! -f "$EXTRACT/web-server" ] && [ -f "$EXTRACT/package/web-server" ]; then
+  EXTRACT="$EXTRACT/package"
+fi
+
+if [ ! -f "$EXTRACT/web-server" ] || [ ! -f "$EXTRACT/streamer" ]; then
+  echo "Release archive is missing web-server and/or streamer" >&2
+  exit 1
+fi
+
+# Upstream tarballs ship the binaries as 0644; the node user must be able to exec.
+chmod +x "$EXTRACT/web-server" "$EXTRACT/streamer"
+
+if [ -x "$EXTRACT/web-server" ]; then
+  "$EXTRACT/web-server" -V \
+    || "$EXTRACT/web-server" --help \
+    || "$EXTRACT/web-server" help \
     || true
 fi
 
@@ -71,10 +90,14 @@ fi
 if [ -n "${PATCH_DIR}" ] && [ -f "$PATCH_DIR/patch-static.sh" ]; then
   echo "Applying Gatwy stream chrome patches from $PATCH_DIR"
   chmod +x "$PATCH_DIR/patch-static.sh" 2>/dev/null || true
-  sh "$PATCH_DIR/patch-static.sh" "$DEST/static" "$PATCH_DIR"
+  sh "$PATCH_DIR/patch-static.sh" "$EXTRACT/static" "$PATCH_DIR"
 else
   echo "No Gatwy mlw-patches directory found; skipped static patches."
 fi
 
+mkdir -p "$DEST"
+cp -a "$EXTRACT"/. "$DEST"/
+chmod +x "$DEST/web-server" "$DEST/streamer"
+
 echo "moonlight-web-stream installed at $DEST"
-echo "Set MOONLIGHT_WEB_DIR=$DEST if it is not already."
+echo "Default search path is /opt/moonlight-web; set MOONLIGHT_WEB_DIR only for a custom location."

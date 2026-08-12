@@ -59,6 +59,7 @@ services:
       - ./data:/app/data
     environment:
       - GATWY_ENCRYPTION_KEY=your-64-char-hex-key  # openssl rand -hex 32
+      # - MOONLIGHT_DOWNLOAD=1  # optional: fetch moonlight-web-stream (GPL-3.0) on start
 ```
 
 ```bash
@@ -77,28 +78,36 @@ Open **`https://<YOUR_IP>:7443`** — on first launch you'll be prompted to crea
 
 When the moonlight-web runtime is present, Remote Control includes **Moonlight** next to RDP and VNC. It streams a Sunshine (GameStream-compatible) host in a Gatwy tab. Without that runtime, the protocol reports `available: false` and other protocols are unchanged.
 
-**Enable at build time** (embeds [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream), GPL-3.0):
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.moonlight.yml up --build -d
-```
-
-Equivalent build arg:
+**Enable at runtime** (recommended). The default image stays MIT-clean until you opt in. Set one environment variable — that is enough. The entrypoint downloads [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream) (GPL-3.0) into `/opt/moonlight-web`, applies Gatwy patches, and Moonlight reports `available: true`.
 
 ```yaml
-build:
-  args:
-    INCLUDE_MOONLIGHT: "1"
+# docker-compose.yml (excerpt) — no second compose file
+services:
+  gatwy:
+    environment:
+      - MOONLIGHT_DOWNLOAD=1
 ```
 
-**Enable at runtime** (same GPL component; not downloaded unless you opt in):
+Optional: `MOONLIGHT_WEB_DIR` only if you want a custom install path (default `/opt/moonlight-web`).
+
+**Optional: bake into the image** at build time instead of first start (same GPL component):
 
 ```bash
-# in compose environment:
-MOONLIGHT_DOWNLOAD=1
+docker build --build-arg INCLUDE_MOONLIGHT=1 -t gatwy .
 ```
 
-Or install manually with `scripts/fetch-moonlight-web.sh` / a [release tarball](https://github.com/MrCreativ3001/moonlight-web-stream/releases) and set `MOONLIGHT_WEB_DIR`.
+Or in compose `build.args`:
+
+```yaml
+services:
+  gatwy:
+    build:
+      context: .
+      args:
+        INCLUDE_MOONLIGHT: "1"
+```
+
+Manual install: `scripts/fetch-moonlight-web.sh` or a [release tarball](https://github.com/MrCreativ3001/moonlight-web-stream/releases). Set `MOONLIGHT_WEB_DIR` only when the files are not at `/opt/moonlight-web`.
 
 **Use:** create a Moonlight connection (host = Sunshine PC, port `47989`). On first connect, enter the PIN Gatwy shows into the Sunshine web UI (`https://<pc>:47990`). Later connects skip PIN. Forget pairing from the connection editor or session panel to re-pair.
 
@@ -130,9 +139,9 @@ Credits: [Moonlight](https://moonlight-stream.org/), [Sunshine](https://github.c
 | `PORT` | `7443` | HTTPS port |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | *(auto)* | Custom TLS certificate & key paths |
 | `DATA_DIR` | `/app/data` | Database, certs, recordings, and logs |
-| `INCLUDE_MOONLIGHT` | `0` | Docker **build-arg** only. `1`/`true` embeds moonlight-web-stream (GPL-3.0) |
-| `MOONLIGHT_DOWNLOAD` | *(unset)* | Runtime opt-in: `1`/`true` fetches moonlight-web-stream on start if binaries are missing |
-| `MOONLIGHT_WEB_DIR` | *(unset)* | Path to moonlight-web `web-server` + `streamer`. Default search includes `/opt/moonlight-web` |
+| `MOONLIGHT_DOWNLOAD` | *(unset)* | Runtime opt-in: `1`/`true` fetches moonlight-web-stream (GPL-3.0) on start into `/opt/moonlight-web`. **This is the one env var you need.** |
+| `MOONLIGHT_WEB_DIR` | `/opt/moonlight-web` | Custom path to moonlight-web `web-server` + `streamer`. Only set this to override the default. |
+| `INCLUDE_MOONLIGHT` | `0` | Docker **build-arg** only (optional bake-in). `1`/`true` embeds moonlight-web-stream at image build |
 | `MOONLIGHT_WEBRTC_PORT_MIN` / `_MAX` | `40000` / `40100` | WebRTC UDP range inside the container |
 | `MOONLIGHT_WEBRTC_NAT_1TO1_HOST` | *(unset)* | Optional public/LAN IP advertised for WebRTC ICE |
 
@@ -165,14 +174,14 @@ git clone https://github.com/kotoxie/gatwy && cd Gatwy/
 # With Docker (default: Moonlight runtime not bundled)
 docker compose up --build -d
 
-# With optional Moonlight/Sunshine
-docker compose -f docker-compose.yml -f docker-compose.moonlight.yml up --build -d
+# Optional Moonlight/Sunshine: set MOONLIGHT_DOWNLOAD=1 on the container (no rebuild)
+# Optional bake-in: docker build --build-arg INCLUDE_MOONLIGHT=1
 
 # Without Docker (Node.js 22+)
 npm install && npm run build && npm start
 ```
 
-Bare-metal Moonlight needs a moonlight-web-stream install and `MOONLIGHT_WEB_DIR`. See [THIRD_PARTY.md](THIRD_PARTY.md).
+Bare-metal Moonlight needs a moonlight-web-stream install (see [THIRD_PARTY.md](THIRD_PARTY.md)). Set `MOONLIGHT_WEB_DIR` only if it is not at `/opt/moonlight-web`.
 
 ---
 

@@ -235,7 +235,7 @@ async function main() {
         console.warn('[Moonlight] Deferred start failed:', err instanceof Error ? err.message : err);
       });
     } else {
-      console.warn('[Moonlight] Runtime binaries not found — Moonlight sessions unavailable until INCLUDE_MOONLIGHT=1, MOONLIGHT_DOWNLOAD=1, or MOONLIGHT_WEB_DIR is set.');
+      console.warn('[Moonlight] Runtime binaries not found — Moonlight sessions unavailable until MOONLIGHT_DOWNLOAD=1 (or INCLUDE_MOONLIGHT=1 / MOONLIGHT_WEB_DIR).');
     }
   });
 }
