@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.19.2
+
+### Moonlight UI polish
+
+- Session chrome now uses the same right-edge flyout panel pattern as RDP (status, fullscreen, bitrate/FPS, resolution, forget pairing, disconnect).
+- Pairing modal aligns with other Gatwy session overlays.
+- On-stream stats HUD restyled via same-origin `/mlw` CSS injection: small, muted, semi-transparent corner text instead of the default high-contrast overlay.
+- README: treat Moonlight like any other protocol (no bold/hype); drop PIN pairing from highlights.
+
+### Moonlight resolution
+
+- Stream resolution presets (720p–4K and common laptop sizes) plus Auto (client area) default.
+- Preference persisted per connection (`extra_config_json` / session settings API).
+- Auto mode re-measures the session viewport on resize (debounced), updates moonlight-web launch settings, and cleanly restarts the stream so Sunshine follows the new desktop size — not CSS letterboxing.
+
 ## 0.19.1
 
 ### Packaging

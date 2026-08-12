@@ -20,6 +20,7 @@ import {
   deleteEncryptedPairing,
   loadEncryptedPairing,
   mergeMoonlightExtra,
+  normalizeMoonlightResolution,
   parseMoonlightExtra,
   resolveHttpPort,
   saveEncryptedPairing,
@@ -155,10 +156,43 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       appId: extra.appId ?? null,
       apps,
       hasStoredPairing: !!loadEncryptedPairing(conn.id),
+      bitrateKbps: extra.bitrateKbps ?? 20000,
+      fps: extra.fps ?? 60,
+      resolution: normalizeMoonlightResolution(extra.resolution),
     });
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Moonlight status failed' });
   }
+});
+
+// ── PUT /:id/settings ────────────────────────────────────────────
+// Persist stream prefs (bitrate / fps / resolution) without starting a session.
+router.put('/:id/settings', (req: Request, res: Response) => {
+  const conn = getAccessibleMoonlightConn(req, paramId(req));
+  if (!conn) { res.status(404).json({ error: 'Connection not found' }); return; }
+
+  let extra = parseMoonlightExtra(conn.extra_config_json);
+  const patch: Partial<MoonlightExtraConfig> = {};
+
+  if (typeof req.body?.bitrateKbps === 'number' && Number.isFinite(req.body.bitrateKbps)) {
+    patch.bitrateKbps = Math.max(1000, Math.min(150000, Math.round(req.body.bitrateKbps)));
+  }
+  if (typeof req.body?.fps === 'number' && Number.isFinite(req.body.fps)) {
+    patch.fps = Math.max(15, Math.min(240, Math.round(req.body.fps)));
+  }
+  if (req.body?.resolution !== undefined) {
+    patch.resolution = normalizeMoonlightResolution(req.body.resolution);
+  }
+
+  extra = mergeMoonlightExtra(extra, patch);
+  saveExtra(conn.id, extra);
+
+  res.json({
+    ok: true,
+    bitrateKbps: extra.bitrateKbps ?? 20000,
+    fps: extra.fps ?? 60,
+    resolution: normalizeMoonlightResolution(extra.resolution),
+  });
 });
 
 // ── POST /:id/pair ───────────────────────────────────────────────
@@ -352,10 +386,18 @@ router.post('/:id/session', async (req: Request, res: Response) => {
       ipAddress: resolveClientIp(req),
     });
 
-    const bitrateKbps = typeof req.body?.bitrateKbps === 'number'
-      ? req.body.bitrateKbps
+    const bitrateKbps = typeof req.body?.bitrateKbps === 'number' && Number.isFinite(req.body.bitrateKbps)
+      ? Math.max(1000, Math.min(150000, Math.round(req.body.bitrateKbps)))
       : (extra.bitrateKbps ?? 20000);
-    const fps = typeof req.body?.fps === 'number' ? req.body.fps : (extra.fps ?? 60);
+    const fps = typeof req.body?.fps === 'number' && Number.isFinite(req.body.fps)
+      ? Math.max(15, Math.min(240, Math.round(req.body.fps)))
+      : (extra.fps ?? 60);
+    const resolution = req.body?.resolution !== undefined
+      ? normalizeMoonlightResolution(req.body.resolution)
+      : normalizeMoonlightResolution(extra.resolution);
+
+    extra = mergeMoonlightExtra(extra, { bitrateKbps, fps, resolution, paired: true });
+    saveExtra(conn.id, extra);
 
     res.json({
       sessionId,
@@ -365,6 +407,7 @@ router.post('/:id/session', async (req: Request, res: Response) => {
       streamPath: `/mlw/stream.html?hostId=${hostId}&appId=${app.app_id}`,
       bitrateKbps,
       fps,
+      resolution,
     });
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Failed to start session' });

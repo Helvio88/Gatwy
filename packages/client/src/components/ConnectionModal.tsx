@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, type ReactNode, type FormEvent } from 'react';
 import { type Protocol } from '../types/protocol.js';
+import { ML_RESOLUTION_PRESETS, normalizeMlResolution } from '../lib/moonlightResolution';
 interface Connection {
   id: string;
   name: string;
@@ -220,6 +221,7 @@ export function ConnectionModal({ connection, groups, onClose, onSaved, prefill 
   const [mlAppName, setMlAppName] = useState('Desktop');
   const [mlHttpPort, setMlHttpPort] = useState('');
   const [mlAdminPort, setMlAdminPort] = useState('47990');
+  const [mlResolution, setMlResolution] = useState('auto');
   const [mlPaired, setMlPaired] = useState(false);
   const [mlForgetting, setMlForgetting] = useState(false);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
@@ -247,6 +249,9 @@ export function ConnectionModal({ connection, groups, onClose, onSaved, prefill 
         if (d.extraConfig?.appName) setMlAppName(String(d.extraConfig.appName));
         if (d.extraConfig?.httpPort) setMlHttpPort(String(d.extraConfig.httpPort));
         if (d.extraConfig?.adminPort) setMlAdminPort(String(d.extraConfig.adminPort));
+        if (d.extraConfig?.resolution !== undefined) {
+          setMlResolution(normalizeMlResolution(d.extraConfig.resolution));
+        }
         if (d.extraConfig?.paired) setMlPaired(!!d.extraConfig.paired);
         if (d.tags && Array.isArray(d.tags)) setTags(d.tags);
         if (d.skipCertValidation !== undefined) setSkipCertValidation(!!d.skipCertValidation);
@@ -339,6 +344,7 @@ export function ConnectionModal({ connection, groups, onClose, onSaved, prefill 
       if (protocol === 'moonlight') {
         const mlCfg: Record<string, unknown> = {
           appName: mlAppName.trim() || 'Desktop',
+          resolution: normalizeMlResolution(mlResolution),
         };
         if (mlHttpPort.trim()) mlCfg.httpPort = parseInt(mlHttpPort, 10);
         if (mlAdminPort.trim()) mlCfg.adminPort = parseInt(mlAdminPort, 10);
@@ -527,6 +533,21 @@ export function ConnectionModal({ connection, groups, onClose, onSaved, prefill 
                   placeholder="Desktop"
                   className="w-full px-2.5 py-1.5 bg-surface border border-border rounded text-sm text-text-primary focus:outline-hidden focus:ring-2 focus:ring-accent"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Resolution</label>
+                <select
+                  value={mlResolution}
+                  onChange={(e) => setMlResolution(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-surface border border-border rounded text-sm text-text-primary focus:outline-hidden focus:ring-2 focus:ring-accent"
+                >
+                  {ML_RESOLUTION_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-text-secondary mt-1">
+                  Auto uses the session tab size and follows browser resizes (host stream restart).
+                </p>
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
