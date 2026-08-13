@@ -53,6 +53,7 @@ const DEFAULTS: Record<string, string> = {
   'auth.oidc_admin_group_claim': '',
   'auth.oidc_admin_group_value': '',
   'auth.oidc_button_label': 'Sign in with SSO',
+  'auth.oidc_token_auth_method': 'client_secret_basic',
   'auto_backup.enabled': 'false',
   'auto_backup.destination_mode': 'saved',
   'auto_backup.connection_id': '',

@@ -119,6 +119,7 @@ Credits: [Moonlight](https://moonlight-stream.org/), [Sunshine](https://github.c
 | `PORT` | `7443` | HTTPS port |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | *(auto)* | Custom TLS certificate & key paths |
 | `DATA_DIR` | `/app/data` | Database, certs, recordings, and logs |
+| `OIDC_TOKEN_AUTH_METHOD` | `client_secret_basic` | OIDC token endpoint client auth. Use `client_secret_basic` (or `basic`) or `client_secret_post` (or `post`). |
 | `ENABLE_MOONLIGHT` | *(unset)* | Runtime opt-in: `1`/`true`/`yes` fetches moonlight-web-stream (GPL-3.0) on start into `/opt/moonlight-web`. **This is the one env var you need.** |
 
 > ⚠️ If no encryption key env var is set, Gatwy auto-generates one at `/app/data/encryption.key` with a warning banner. Fine for home-lab — not recommended for production.
