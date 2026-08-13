@@ -6,16 +6,15 @@
 #
 # Usage:
 #   fetch-moonlight-web [dest] [version] [arch]
-#   MOONLIGHT_WEB_DIR=/opt/moonlight-web MOONLIGHT_WEB_VERSION=v2.10.0 fetch-moonlight-web
 #
 # dest defaults to /opt/moonlight-web. The Gatwy entrypoint calls this when
-# MOONLIGHT_DOWNLOAD=1; no extra env vars are required for that path.
+# ENABLE_MOONLIGHT=1; no extra env vars are required for that path.
 #
 # arch: Docker TARGETARCH (amd64|arm64) or uname -m (x86_64|aarch64).
 set -eu
 
-DEST="${1:-${MOONLIGHT_WEB_DIR:-/opt/moonlight-web}}"
-VERSION="${2:-${MOONLIGHT_WEB_VERSION:-v2.10.0}}"
+DEST="${1:-/opt/moonlight-web}"
+VERSION="${2:-v2.10.0}"
 ARCH_HINT="${3:-${TARGETARCH:-}}"
 
 echo "moonlight-web-stream is licensed under GPL-3.0."
@@ -100,4 +99,4 @@ cp -a "$EXTRACT"/. "$DEST"/
 chmod +x "$DEST/web-server" "$DEST/streamer"
 
 echo "moonlight-web-stream installed at $DEST"
-echo "Default search path is /opt/moonlight-web; set MOONLIGHT_WEB_DIR only for a custom location."
+echo "Gatwy looks for moonlight-web at /opt/moonlight-web."

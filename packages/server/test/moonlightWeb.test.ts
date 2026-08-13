@@ -7,6 +7,8 @@ import {
   moonlightBinariesPresent,
   moonlightUnavailablePayload,
   MOONLIGHT_UNAVAILABLE_BODY,
+  MOONLIGHT_MISSING_HINT,
+  filterListedConnections,
 } from '../src/services/moonlightWeb.js';
 
 describe('moonlightBinariesPresent', () => {
@@ -58,5 +60,33 @@ describe('moonlightUnavailablePayload', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('filterListedConnections', () => {
+  const rows = [
+    { id: '1', protocol: 'rdp' },
+    { id: '2', protocol: 'moonlight' },
+    { id: '3', protocol: 'vnc' },
+  ];
+
+  it('keeps moonlight rows when the runtime is available', () => {
+    assert.deepEqual(filterListedConnections(rows, true), rows);
+  });
+
+  it('omits moonlight rows when the runtime is unavailable (does not delete)', () => {
+    assert.deepEqual(filterListedConnections(rows, false), [
+      { id: '1', protocol: 'rdp' },
+      { id: '3', protocol: 'vnc' },
+    ]);
+  });
+});
+
+describe('MOONLIGHT_MISSING_HINT', () => {
+  it('mentions only ENABLE_MOONLIGHT=1', () => {
+    assert.match(MOONLIGHT_MISSING_HINT, /ENABLE_MOONLIGHT=1/);
+    assert.doesNotMatch(MOONLIGHT_MISSING_HINT, /MOONLIGHT_DOWNLOAD/);
+    assert.doesNotMatch(MOONLIGHT_MISSING_HINT, /INCLUDE_MOONLIGHT/);
+    assert.doesNotMatch(MOONLIGHT_MISSING_HINT, /MOONLIGHT_WEB_DIR/);
   });
 });

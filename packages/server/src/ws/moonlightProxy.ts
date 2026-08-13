@@ -37,6 +37,7 @@ function authorizeUpgrade(req: IncomingMessage): boolean {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const status = checkAndTouchSession(tokenHash, false);
     if (status === 'revoked' || status === 'idle_expired') return false;
+    if (!isMoonlightWebAvailable()) return false;
     return userHasPermission(payload.userId, 'protocols.moonlight');
   } catch {
     return false;

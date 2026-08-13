@@ -36,6 +36,8 @@ interface ConnectionModalProps {
   onSaved: () => void;
   /** Pre-fill fields for duplicate/copy mode (connection must be null) */
   prefill?: ConnectionPrefill;
+  /** When false, Moonlight is omitted from the protocol picker (runtime unavailable). */
+  moonlightAvailable?: boolean;
 }
 
 interface TunnelDef { id: string; localPort: string; remoteHost: string; remotePort: string; }
@@ -183,7 +185,7 @@ const PROTOCOL_CATEGORIES: { id: ProtocolCategory; label: string; headerIcon: Re
   },
 ];
 
-export function ConnectionModal({ connection, groups, onClose, onSaved, prefill }: ConnectionModalProps) {
+export function ConnectionModal({ connection, groups, onClose, onSaved, prefill, moonlightAvailable = false }: ConnectionModalProps) {
 
   const [name, setName] = useState(prefill?.name ?? connection?.name ?? '');
   const [protocol, setProtocol] = useState<Protocol>(prefill?.protocol ?? connection?.protocol ?? 'rdp');
@@ -426,13 +428,16 @@ export function ConnectionModal({ connection, groups, onClose, onSaved, prefill 
           {/* Protocol sidebar */}
           <div className="w-44 flex-shrink-0 bg-surface border-r border-border rounded-l-lg py-3 overflow-y-auto">
             <p className="px-3 mb-1 text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Protocol</p>
-            {PROTOCOL_CATEGORIES.map((cat) => (
+            {PROTOCOL_CATEGORIES.map((cat) => {
+              const protocols = cat.protocols.filter((p) => p.id !== 'moonlight' || moonlightAvailable);
+              if (protocols.length === 0) return null;
+              return (
               <div key={cat.id} className="mb-1">
                 <div className="flex items-center gap-1.5 px-3 py-1.5">
                   <span className="text-text-secondary">{cat.headerIcon}</span>
                   <span className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">{cat.label}</span>
                 </div>
-                {cat.protocols.map(({ id: p, label, icon }) => (
+                {protocols.map(({ id: p, label, icon }) => (
                   <button
                     key={p}
                     type="button"
@@ -448,7 +453,8 @@ export function ConnectionModal({ connection, groups, onClose, onSaved, prefill 
                   </button>
                 ))}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Form content */}

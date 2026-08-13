@@ -15,21 +15,19 @@ apply_mlw_patches() {
 }
 
 # Optional opt-in: download moonlight-web-stream (GPL-3.0) at container start.
-# Never runs unless MOONLIGHT_DOWNLOAD is 1/true/yes — silent GPL fetch is not OK.
-# MOONLIGHT_DOWNLOAD=1 is enough on its own: dest defaults to /opt/moonlight-web,
-# patches apply, binaries are executable for the node user, and the Node process
-# inherits MOONLIGHT_WEB_DIR so Moonlight reports available: true.
-ml_flag=$(printf '%s' "${MOONLIGHT_DOWNLOAD:-0}" | tr '[:upper:]' '[:lower:]')
+# Never runs unless ENABLE_MOONLIGHT is 1/true/yes — silent GPL fetch is not OK.
+# ENABLE_MOONLIGHT=1 is enough on its own: dest is /opt/moonlight-web, patches
+# apply, binaries are executable for the node user, and Moonlight reports available.
+ml_flag=$(printf '%s' "${ENABLE_MOONLIGHT:-0}" | tr '[:upper:]' '[:lower:]')
 case "$ml_flag" in
   1|true|yes)
-    dest="${MOONLIGHT_WEB_DIR:-/opt/moonlight-web}"
-    export MOONLIGHT_WEB_DIR="$dest"
+    dest="/opt/moonlight-web"
     mkdir -p "$dest"
     if [ ! -x "$dest/web-server" ] || [ ! -x "$dest/streamer" ]; then
-      echo "[Gatwy] MOONLIGHT_DOWNLOAD=$MOONLIGHT_DOWNLOAD: fetching moonlight-web-stream (GPL-3.0) into $dest"
+      echo "[Gatwy] ENABLE_MOONLIGHT=$ENABLE_MOONLIGHT: fetching moonlight-web-stream (GPL-3.0) into $dest"
       fetch-moonlight-web "$dest"
     else
-      echo "[Gatwy] MOONLIGHT_DOWNLOAD set; moonlight-web already present at $dest"
+      echo "[Gatwy] ENABLE_MOONLIGHT set; moonlight-web already present at $dest"
     fi
     chmod +x "$dest/web-server" "$dest/streamer"
     apply_mlw_patches "$dest"
