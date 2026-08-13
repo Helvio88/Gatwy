@@ -883,6 +883,14 @@ function runMigrations() {
         }
       },
     },
+    {
+      version: 18,
+      run: (database: Database) => {
+        // OIDC token endpoint auth method (kotoxie #32; upstream used v17)
+        database.run(`INSERT OR IGNORE INTO settings (key, value) VALUES
+          ('auth.oidc_token_auth_method', 'client_secret_basic')`);
+      },
+    },
   ];
 
   for (const migration of migrations) {

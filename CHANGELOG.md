@@ -2,6 +2,10 @@
 
 ## 0.19.17
 
+### Upstream
+
+- Synced `kotoxie/Gatwy` #32 (OIDC: one token-endpoint auth method, default `client_secret_basic`) and the postcss 8.5.22 → 8.5.26 bump. Fork version stays 0.19.17.
+
 ### Packaging
 
 - Moonlight enablement is a single env var: `ENABLE_MOONLIGHT=1` (`true`/`yes`, case-insensitive). The entrypoint downloads moonlight-web-stream into `/opt/moonlight-web`, applies Gatwy patches, and Moonlight reports `available: true`.
