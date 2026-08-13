@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../../hooks/useAuth';
 
 const API = '/api/v1/notifications';
 
@@ -253,6 +254,13 @@ const GROUP_ICONS: Record<string, string> = {
 };
 
 function EventPicker({ events, onChange }: { events: string[]; onChange: (v: string[]) => void }) {
+  const { features } = useAuth();
+  const pickerGroups = features.moonlight
+    ? EVENT_GROUPS
+    : EVENT_GROUPS.map((g) => ({
+        ...g,
+        events: g.events.filter((ev) => !ev.value.includes('moonlight')),
+      }));
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -302,13 +310,13 @@ function EventPicker({ events, onChange }: { events: string[]; onChange: (v: str
   // Filter events by search term
   const q = search.toLowerCase();
   const filteredGroups = q
-    ? EVENT_GROUPS.map((g) => ({
+    ? pickerGroups.map((g) => ({
         ...g,
         events: g.events.filter(
           (ev) => ev.label.toLowerCase().includes(q) || ev.value.toLowerCase().includes(q),
         ),
       })).filter((g) => g.events.length > 0)
-    : EVENT_GROUPS;
+    : pickerGroups;
 
   const selectedCount = events.length;
 

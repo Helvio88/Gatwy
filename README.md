@@ -59,7 +59,7 @@ services:
       - ./data:/app/data
     environment:
       - GATWY_ENCRYPTION_KEY=your-64-char-hex-key  # openssl rand -hex 32
-      # - MOONLIGHT_DOWNLOAD=1  # optional: fetch moonlight-web-stream (GPL-3.0) on start
+      # - ENABLE_MOONLIGHT=1  # optional: fetch moonlight-web-stream (GPL-3.0) on start
 ```
 
 ```bash
@@ -78,36 +78,16 @@ Open **`https://<YOUR_IP>:7443`** — on first launch you'll be prompted to crea
 
 When the moonlight-web runtime is present, Remote Control includes **Moonlight** next to RDP and VNC. It streams a Sunshine (GameStream-compatible) host in a Gatwy tab. Without that runtime, the protocol reports `available: false` and other protocols are unchanged.
 
-**Enable at runtime** (recommended). The default image stays MIT-clean until you opt in. Set one environment variable — that is enough. The entrypoint downloads [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream) (GPL-3.0) into `/opt/moonlight-web`, applies Gatwy patches, and Moonlight reports `available: true`.
+**Enable at runtime.** The default image stays MIT-clean until you opt in. Set one environment variable — that is enough. The entrypoint downloads [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream) (GPL-3.0) into `/opt/moonlight-web`, applies Gatwy patches, and Moonlight reports `available: true`.
 
 ```yaml
-# docker-compose.yml (excerpt) — no second compose file
-services:
-  gatwy:
-    environment:
-      - MOONLIGHT_DOWNLOAD=1
+environment:
+  - ENABLE_MOONLIGHT=1
 ```
 
-Optional: `MOONLIGHT_WEB_DIR` only if you want a custom install path (default `/opt/moonlight-web`).
+When `ENABLE_MOONLIGHT` is unset, Moonlight is hidden from the UI (protocol picker and existing Moonlight connections) and reports `available: false`. Connections stay in the database and reappear if you enable it later.
 
-**Optional: bake into the image** at build time instead of first start (same GPL component):
-
-```bash
-docker build --build-arg INCLUDE_MOONLIGHT=1 -t gatwy .
-```
-
-Or in compose `build.args`:
-
-```yaml
-services:
-  gatwy:
-    build:
-      context: .
-      args:
-        INCLUDE_MOONLIGHT: "1"
-```
-
-Manual install: `scripts/fetch-moonlight-web.sh` or a [release tarball](https://github.com/MrCreativ3001/moonlight-web-stream/releases). Set `MOONLIGHT_WEB_DIR` only when the files are not at `/opt/moonlight-web`.
+Manual install: `scripts/fetch-moonlight-web.sh` or a [release tarball](https://github.com/MrCreativ3001/moonlight-web-stream/releases) at `/opt/moonlight-web`.
 
 **Use:** create a Moonlight connection (host = Sunshine PC, port `47989`). On first connect, enter the PIN Gatwy shows into the Sunshine web UI (`https://<pc>:47990`). Later connects skip PIN. Forget pairing from the connection editor or session panel to re-pair.
 
@@ -123,7 +103,7 @@ Gatwy turns on Moonlight **Optimize game settings** (`sops`) so Sunshine can fol
 | 48010 | TCP | RTSP |
 | 47998–48000 | UDP | Video / audio / control |
 
-The Gatwy container must reach those ports on the Sunshine PC (same LAN is typical). Browser transport defaults to **WebSocket** on Gatwy’s HTTPS port `7443`. For WebRTC, publish UDP `40000-40100` and set `MOONLIGHT_WEBRTC_NAT_1TO1_HOST`. Pairing material lives under `/app/data/moonlight-web` plus an encrypted backup in `/app/data/moonlight/pairings/`.
+The Gatwy container must reach those ports on the Sunshine PC (same LAN is typical). Browser transport defaults to **WebSocket** on Gatwy’s HTTPS port `7443`. For WebRTC, publish UDP `40000-40100`. Pairing material lives under `/app/data/moonlight-web` plus an encrypted backup in `/app/data/moonlight/pairings/`.
 
 RBAC: `protocols.moonlight` (granted with RDP/VNC on default admin/user roles).
 
@@ -139,11 +119,7 @@ Credits: [Moonlight](https://moonlight-stream.org/), [Sunshine](https://github.c
 | `PORT` | `7443` | HTTPS port |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | *(auto)* | Custom TLS certificate & key paths |
 | `DATA_DIR` | `/app/data` | Database, certs, recordings, and logs |
-| `MOONLIGHT_DOWNLOAD` | *(unset)* | Runtime opt-in: `1`/`true` fetches moonlight-web-stream (GPL-3.0) on start into `/opt/moonlight-web`. **This is the one env var you need.** |
-| `MOONLIGHT_WEB_DIR` | `/opt/moonlight-web` | Custom path to moonlight-web `web-server` + `streamer`. Only set this to override the default. |
-| `INCLUDE_MOONLIGHT` | `0` | Docker **build-arg** only (optional bake-in). `1`/`true` embeds moonlight-web-stream at image build |
-| `MOONLIGHT_WEBRTC_PORT_MIN` / `_MAX` | `40000` / `40100` | WebRTC UDP range inside the container |
-| `MOONLIGHT_WEBRTC_NAT_1TO1_HOST` | *(unset)* | Optional public/LAN IP advertised for WebRTC ICE |
+| `ENABLE_MOONLIGHT` | *(unset)* | Runtime opt-in: `1`/`true`/`yes` fetches moonlight-web-stream (GPL-3.0) on start into `/opt/moonlight-web`. **This is the one env var you need.** |
 
 > ⚠️ If no encryption key env var is set, Gatwy auto-generates one at `/app/data/encryption.key` with a warning banner. Fine for home-lab — not recommended for production.
 
@@ -174,14 +150,13 @@ git clone https://github.com/kotoxie/gatwy && cd Gatwy/
 # With Docker (default: Moonlight runtime not bundled)
 docker compose up --build -d
 
-# Optional Moonlight/Sunshine: set MOONLIGHT_DOWNLOAD=1 on the container (no rebuild)
-# Optional bake-in: docker build --build-arg INCLUDE_MOONLIGHT=1
+# Optional Moonlight/Sunshine: set ENABLE_MOONLIGHT=1 on the container (no rebuild)
 
 # Without Docker (Node.js 22+)
 npm install && npm run build && npm start
 ```
 
-Bare-metal Moonlight needs a moonlight-web-stream install (see [THIRD_PARTY.md](THIRD_PARTY.md)). Set `MOONLIGHT_WEB_DIR` only if it is not at `/opt/moonlight-web`.
+Bare-metal Moonlight needs a moonlight-web-stream install at `/opt/moonlight-web` (see [THIRD_PARTY.md](THIRD_PARTY.md)).
 
 ---
 

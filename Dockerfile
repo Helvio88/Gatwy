@@ -1,8 +1,8 @@
 # Stage 1: Build
 # moonlight-web-stream glibc binaries need GLIBC_2.38+; bookworm is 2.36.
 # node:22-noble is not published — use Debian trixie (glibc ≥ 2.39) so the
-# optional Moonlight runtime can load when INCLUDE_MOONLIGHT=1 or
-# MOONLIGHT_DOWNLOAD=1. Default builds do not embed those binaries.
+# optional Moonlight runtime can load when ENABLE_MOONLIGHT=1. Default builds
+# do not embed those binaries.
 FROM node:22-trixie-slim AS builder
 
 WORKDIR /app
@@ -27,14 +27,10 @@ RUN npm run build --workspace=packages/server
 # Stage 2: Production
 FROM node:22-trixie-slim
 
-ARG TARGETARCH
-ARG INCLUDE_MOONLIGHT=0
-ARG MOONLIGHT_WEB_VERSION=v2.10.0
-
 WORKDIR /app
 
 # Runtime deps: curl/ca-certs for healthcheck and optional MLW fetch
-# (MOONLIGHT_DOWNLOAD=1), gosu for privilege drop, openssl for TLS helpers,
+# (ENABLE_MOONLIGHT=1), gosu for privilege drop, openssl for TLS helpers,
 # libgcc-s1 for the moonlight-web gnu binaries when they are fetched at runtime.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl gosu openssl libgcc-s1 \
@@ -45,22 +41,6 @@ RUN apt-get update \
 COPY docker/mlw-patches/ /opt/gatwy/mlw-patches/
 COPY scripts/fetch-moonlight-web.sh /usr/local/bin/fetch-moonlight-web
 RUN chmod +x /usr/local/bin/fetch-moonlight-web /opt/gatwy/mlw-patches/patch-static.sh
-
-# Default INCLUDE_MOONLIGHT=0: do not embed GPL binaries.
-# Opt in: docker build --build-arg INCLUDE_MOONLIGHT=1
-# Explicit sh: slim image has no bash; fetch script is POSIX.
-RUN set -eu; \
-  flag=$(printf '%s' "$INCLUDE_MOONLIGHT" | tr '[:upper:]' '[:lower:]'); \
-  case "$flag" in \
-    1|true|yes) \
-      echo "INCLUDE_MOONLIGHT=$INCLUDE_MOONLIGHT — downloading moonlight-web-stream ${MOONLIGHT_WEB_VERSION}"; \
-      TARGETARCH="$TARGETARCH" MOONLIGHT_WEB_VERSION="$MOONLIGHT_WEB_VERSION" \
-        fetch-moonlight-web /opt/moonlight-web "$MOONLIGHT_WEB_VERSION" "$TARGETARCH"; \
-      ;; \
-    *) \
-      echo "Skipping moonlight-web-stream (INCLUDE_MOONLIGHT=$INCLUDE_MOONLIGHT). Set MOONLIGHT_DOWNLOAD=1 at runtime to fetch it."; \
-      ;; \
-  esac
 
 # Copy package files and install production deps only
 COPY package.json package-lock.json* ./
@@ -93,7 +73,7 @@ ENV NODE_ENV=production
 # @marsaud/smb2 uses ntlm which calls DES-ECB — a legacy cipher disabled in OpenSSL 3.
 ENV NODE_OPTIONS="--openssl-legacy-provider"
 
-# start-period covers first-boot MOONLIGHT_DOWNLOAD (≈15MB GitHub fetch) before listen.
+# start-period covers first-boot ENABLE_MOONLIGHT fetch (≈15MB GitHub) before listen.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s \
   CMD curl -fsk https://localhost:7443/health || exit 1
 

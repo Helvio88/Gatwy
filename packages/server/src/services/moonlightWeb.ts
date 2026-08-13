@@ -9,6 +9,12 @@ const MLW_USER = 'gatwy';
 const MLW_HEADER = 'X-Gatwy-Moonlight-User';
 const DEFAULT_BIND = '127.0.0.1:19080';
 const PATH_PREFIX = '/mlw';
+const BINARY_DIR = '/opt/moonlight-web';
+const WEBRTC_PORT_MIN = 40000;
+const WEBRTC_PORT_MAX = 40100;
+const LOG_LEVEL = 'INFO';
+export const MOONLIGHT_MISSING_HINT =
+  'Moonlight web-server binary not found. Set ENABLE_MOONLIGHT=1 to download moonlight-web-stream at runtime.';
 
 export interface MlwHost {
   host_id: number;
@@ -41,22 +47,11 @@ function moonlightDir(): string {
 }
 
 function resolveBinaryDir(): string {
-  const candidates = [
-    process.env.MOONLIGHT_WEB_DIR,
-    '/opt/moonlight-web',
-    path.resolve(config.dataDir, '..', 'moonlight-web'),
-    path.resolve(process.cwd(), 'moonlight-web'),
-  ].filter(Boolean) as string[];
-
-  for (const dir of candidates) {
-    if (fs.existsSync(path.join(dir, 'web-server'))) return dir;
-  }
-  return candidates[0] ?? '/opt/moonlight-web';
+  return BINARY_DIR;
 }
 
 function bindHostPort(): { host: string; port: number } {
-  const bind = process.env.MOONLIGHT_WEB_BIND || DEFAULT_BIND;
-  const [host, portStr] = bind.split(':');
+  const [host, portStr] = DEFAULT_BIND.split(':');
   return { host: host || '127.0.0.1', port: parseInt(portStr || '19080', 10) };
 }
 
@@ -64,10 +59,6 @@ function writeConfig(dir: string, binDir: string): string {
   fs.mkdirSync(dir, { recursive: true });
   const configPath = path.join(dir, 'config.json');
   const { host, port } = bindHostPort();
-  const webrtcMin = parseInt(process.env.MOONLIGHT_WEBRTC_PORT_MIN || '40000', 10);
-  const webrtcMax = parseInt(process.env.MOONLIGHT_WEBRTC_PORT_MAX || '40100', 10);
-  const natHost = process.env.MOONLIGHT_WEBRTC_NAT_1TO1_HOST || '';
-
   const cfg: Record<string, unknown> = {
     web_server: {
       bind_address: `${host}:${port}`,
@@ -91,10 +82,7 @@ function writeConfig(dir: string, binDir: string): string {
     },
     streamer_path: path.join(binDir, 'streamer'),
     webrtc: {
-      port_range: { min: webrtcMin, max: webrtcMax },
-      ...(natHost
-        ? { nat_1to1: { ice_candidate_type: 'host', ips: [natHost] } }
-        : {}),
+      port_range: { min: WEBRTC_PORT_MIN, max: WEBRTC_PORT_MAX },
       ice_servers: [
         {
           urls: [
@@ -109,7 +97,7 @@ function writeConfig(dir: string, binDir: string): string {
       include_loopback_candidates: true,
     },
     log: {
-      level_filter: (process.env.MOONLIGHT_LOG_LEVEL || 'INFO').toUpperCase(),
+      level_filter: LOG_LEVEL,
       file_path: null,
       dev_venator: false,
     },
@@ -183,6 +171,20 @@ export function isMoonlightWebAvailable(): boolean {
   return moonlightBinariesPresent(resolveBinaryDir());
 }
 
+/** Runtime feature flags for UI / list filtering. RBAC keys stay intact. */
+export function runtimeFeatures(): { moonlight: boolean } {
+  return { moonlight: isMoonlightWebAvailable() };
+}
+
+/** Drop moonlight rows from list payloads when the optional runtime is missing. */
+export function filterListedConnections<T extends { protocol: string }>(
+  rows: T[],
+  moonlightAvailable = isMoonlightWebAvailable(),
+): T[] {
+  if (moonlightAvailable) return rows;
+  return rows.filter((r) => r.protocol !== 'moonlight');
+}
+
 /** Status/session JSON when the optional moonlight-web runtime is missing. */
 export function moonlightUnavailablePayload(available: boolean): typeof MOONLIGHT_UNAVAILABLE_BODY | null {
   if (available) return null;
@@ -195,9 +197,7 @@ export async function ensureMoonlightWeb(): Promise<void> {
 
   starting = (async () => {
     if (!isMoonlightWebAvailable()) {
-      throw new Error(
-        'Moonlight web-server binary not found. Set MOONLIGHT_DOWNLOAD=1 (runtime fetch), or bake with INCLUDE_MOONLIGHT=1, or point MOONLIGHT_WEB_DIR at a moonlight-web-stream install.',
-      );
+      throw new Error(MOONLIGHT_MISSING_HINT);
     }
 
     const binDir = resolveBinaryDir();
@@ -218,14 +218,11 @@ export async function ensureMoonlightWeb(): Promise<void> {
       webServer,
       [
         '--config-path', configPath,
-        '--bind-address', process.env.MOONLIGHT_WEB_BIND || DEFAULT_BIND,
+        '--bind-address', DEFAULT_BIND,
         '--path-prefix', PATH_PREFIX,
         '--forwarded-header', MLW_HEADER,
         '--streamer-path', path.join(binDir, 'streamer'),
-        '--webrtc-port-range', `${process.env.MOONLIGHT_WEBRTC_PORT_MIN || '40000'}:${process.env.MOONLIGHT_WEBRTC_PORT_MAX || '40100'}`,
-        ...(process.env.MOONLIGHT_WEBRTC_NAT_1TO1_HOST
-          ? ['--webrtc-nat-1to1-host', process.env.MOONLIGHT_WEBRTC_NAT_1TO1_HOST]
-          : []),
+        '--webrtc-port-range', `${WEBRTC_PORT_MIN}:${WEBRTC_PORT_MAX}`,
         'run',
       ],
       {

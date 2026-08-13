@@ -188,6 +188,10 @@ async function main() {
         res.status(403).json({ error: 'Moonlight protocol not permitted' });
         return;
       }
+      if (!isMoonlightWebAvailable()) {
+        res.status(503).json({ error: 'Moonlight runtime not available in this installation', available: false });
+        return;
+      }
       next();
     });
   });
@@ -235,7 +239,7 @@ async function main() {
         console.warn('[Moonlight] Deferred start failed:', err instanceof Error ? err.message : err);
       });
     } else {
-      console.warn('[Moonlight] Runtime binaries not found — Moonlight sessions unavailable until MOONLIGHT_DOWNLOAD=1 (or INCLUDE_MOONLIGHT=1 / MOONLIGHT_WEB_DIR).');
+      console.warn('[Moonlight] Runtime binaries not found — Moonlight sessions unavailable until ENABLE_MOONLIGHT=1.');
     }
   });
 }

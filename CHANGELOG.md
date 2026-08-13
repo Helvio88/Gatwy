@@ -1,13 +1,24 @@
 # Changelog
 
+## 0.19.17
+
+### Packaging
+
+- Moonlight enablement is a single env var: `ENABLE_MOONLIGHT=1` (`true`/`yes`, case-insensitive). The entrypoint downloads moonlight-web-stream into `/opt/moonlight-web`, applies Gatwy patches, and Moonlight reports `available: true`.
+- Removed previous enable/download/path aliases and the optional image bake-in. Bind, WebRTC port range, and log level are hardcoded. Default image stays MIT-clean until you opt in.
+
+### UI
+
+- When Moonlight is not enabled (runtime missing), the protocol picker, “add Moonlight connection” chrome, and existing Moonlight connections are hidden. Connections stay in the database and reappear if Moonlight is enabled later. RBAC `protocols.moonlight` is unchanged.
+
 ## 0.19.16
 
 ### Packaging
 
-- Removed `docker-compose.moonlight.yml`. Moonlight is enabled with `MOONLIGHT_DOWNLOAD=1` on the default image — that one env var is enough (fetch into `/opt/moonlight-web`, apply Gatwy patches, `available: true`).
+- Removed `docker-compose.moonlight.yml`. Moonlight is enabled with a runtime opt-in on the default image — that one env var is enough (fetch into `/opt/moonlight-web`, apply Gatwy patches, `available: true`).
 - Runtime fetch retries GitHub downloads, chmod's upstream 0644 binaries so the `node` user can exec them, and re-applies chrome patches on start.
 - Static `getStreamRectCorrected` patch now targets MLW v2.10.0 `stream/video/index.js` (it never matched `stream/index.js`).
-- `INCLUDE_MOONLIGHT=1` remains an optional image bake-in (`docker build --build-arg` or compose `build.args`). Default image stays MIT-clean until you opt in.
+- Optional image bake-in remained in this release. Default image stays MIT-clean until you opt in.
 
 ## 0.19.15
 
@@ -19,9 +30,8 @@
 
 ### Packaging
 
-- Default Docker image no longer embeds moonlight-web-stream (GPL-3.0). `INCLUDE_MOONLIGHT` defaults to `0`; `docker compose build` matches that.
-- Opt in at build time with `--build-arg INCLUDE_MOONLIGHT=1` or `docker-compose.moonlight.yml`.
-- Opt in at runtime with `MOONLIGHT_DOWNLOAD=1` (entrypoint fetch) or `scripts/fetch-moonlight-web.sh`. Silent download is not used.
+- Default Docker image no longer embeds moonlight-web-stream (GPL-3.0). Default `docker compose build` matches that.
+- Opt in at runtime (entrypoint fetch) or `scripts/fetch-moonlight-web.sh`. Silent download is not used.
 - When binaries are missing, Moonlight reports `available: false` (HTTP 503) and other protocols keep working.
 - `THIRD_PARTY.md` documents the optional GPL component. Gatwy `LICENSE` is unchanged (MIT / Copyright kotoxie).
 

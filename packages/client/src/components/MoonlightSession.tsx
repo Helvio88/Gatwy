@@ -1578,7 +1578,7 @@ export function MoonlightSession({
         });
         const st = await statusRes.json() as StatusResponse;
         if (!statusRes.ok) throw new Error(st.error || 'Failed to query Moonlight status');
-        if (!st.available) throw new Error('Moonlight runtime is not available. Set MOONLIGHT_DOWNLOAD=1 on the container and restart.');
+        if (!st.available) throw new Error('Moonlight runtime is not available. Set ENABLE_MOONLIGHT=1 on the container and restart.');
 
         setHostLabel(st.host || connectionName);
         const prefs = {
