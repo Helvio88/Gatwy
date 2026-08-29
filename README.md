@@ -78,7 +78,7 @@ Open **`https://<YOUR_IP>:7443`** — on first launch you'll be prompted to crea
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | *(auto)* | Custom TLS certificate & key paths |
 | `DATA_DIR` | `/app/data` | Database, certs, recordings, and logs |
 | `OIDC_TOKEN_AUTH_METHOD` | `client_secret_basic` | OIDC token endpoint client auth. Use `client_secret_basic` (or `basic`) or `client_secret_post` (or `post`). |
-| `ENABLE_MOONLIGHT` | unset | Opt in to Moonlight / Sunshine. Set to `1`, `true`, or `yes` to download a pinned moonlight-web-stream release at start. Default image stays MIT-clean. |
+| `ENABLE_MOONLIGHT` | unset | Opt in to Moonlight / Sunshine. Set to `1`, `true`, or `yes` and run the moonlight-web sidecar. Default image stays MIT-clean. |
 
 > ⚠️ If no encryption key env var is set, Gatwy auto-generates one at `/app/data/encryption.key` with a warning banner. Fine for home-lab — not recommended for production.
 
@@ -95,9 +95,23 @@ services:
   gatwy:
     environment:
       - ENABLE_MOONLIGHT=1
+    depends_on:
+      - moonlight-web
+  moonlight-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.moonlight-web
+    container_name: moonlight-web
+    restart: unless-stopped
+    environment:
+      - ENABLE_MOONLIGHT=1
+    volumes:
+      - ./data/moonlight-web:/data
 ```
 
-On start the entrypoint downloads a pinned release into `/opt/moonlight-web` and Moonlight shows up in the protocol picker. PIN pairing uses the Sunshine web UI. When the env var is unset, Moonlight stays hidden; stored Moonlight connections are kept and come back if you enable it later.
+`ENABLE_MOONLIGHT=1` is the opt-in. The moonlight-web sidecar (glibc) downloads a pinned moonlight-web-stream release and listens on the compose network. Gatwy proxies `/mlw` to that sidecar and does not run the gnu binary in the Alpine image. Moonlight then shows up in the protocol picker. PIN pairing uses the Sunshine web UI. When the env var is unset, Moonlight stays hidden; stored Moonlight connections are kept and come back if you enable it later.
+
+From this repository: `ENABLE_MOONLIGHT=1 docker compose --profile moonlight up -d`
 
 See [THIRD_PARTY.md](THIRD_PARTY.md) for the license note and pinned release.
 

@@ -9,8 +9,8 @@
 # Usage:
 #   fetch-moonlight-web [dest] [version] [arch]
 #
-# dest defaults to /opt/moonlight-web. The Gatwy entrypoint calls this when
-# ENABLE_MOONLIGHT=1.
+# dest defaults to /opt/moonlight-web. The moonlight-web sidecar calls this
+# when ENABLE_MOONLIGHT=1.
 #
 # arch: Docker TARGETARCH (amd64|arm64) or uname -m (x86_64|aarch64).
 set -eu
@@ -138,4 +138,4 @@ cp -a "$EXTRACT"/. "$DEST"/
 chmod +x "$DEST/web-server" "$DEST/streamer"
 
 echo "moonlight-web-stream installed at $DEST"
-echo "Gatwy looks for moonlight-web at /opt/moonlight-web."
+echo "The moonlight-web sidecar listens on 0.0.0.0:19080 for Gatwy /mlw."

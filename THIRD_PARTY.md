@@ -4,10 +4,11 @@ Gatwy is MIT-licensed. See [LICENSE](LICENSE).
 
 ## Optional: moonlight-web-stream (GPL-3.0)
 
-[moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream) is used only when an operator sets `ENABLE_MOONLIGHT=1` (`true` / `yes` also work).
+[moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream) is used only when an operator sets `ENABLE_MOONLIGHT=1` (`true` / `yes` also work) and runs the moonlight-web sidecar.
 
-- It is **not** part of the default Docker image.
+- It is **not** part of the default Alpine Gatwy image.
 - It is **not** vendored in this repository.
+- The moonlight-web sidecar (`Dockerfile.moonlight-web`) runs the official gnu release binary on glibc.
 - `scripts/fetch-moonlight-web.sh` downloads a **pinned** GitHub release and verifies a baked-in SHA-256. A mismatch or unknown target exits non-zero.
 
 Pinned release: **v2.10.0**

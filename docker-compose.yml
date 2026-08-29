@@ -7,3 +7,24 @@ services:
       - "7443:7443"
     volumes:
       - ./data:/app/data
+    environment:
+      ENABLE_MOONLIGHT: ${ENABLE_MOONLIGHT:-}
+    depends_on:
+      moonlight-web:
+        condition: service_started
+        required: false
+
+  # glibc sidecar for the official moonlight-web-stream gnu binary.
+  # Started with: ENABLE_MOONLIGHT=1 docker compose --profile moonlight up -d
+  moonlight-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.moonlight-web
+    container_name: moonlight-web
+    restart: unless-stopped
+    environment:
+      ENABLE_MOONLIGHT: ${ENABLE_MOONLIGHT:-}
+    volumes:
+      - ./data/moonlight-web:/data
+    profiles:
+      - moonlight

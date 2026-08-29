@@ -1,0 +1,26 @@
+# glibc sidecar for the official moonlight-web-stream gnu binary.
+# Gatwy's main image stays Alpine and never executes this binary.
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl libgcc-s1 \
+  && rm -rf /var/lib/apt/lists/* \
+  && useradd --uid 1000 --user-group --create-home moonlight \
+  && mkdir -p /opt/moonlight-web /data \
+  && chown moonlight:moonlight /opt/moonlight-web /data
+
+# Opt-in fetch helper only. moonlight-web-stream is NOT copied into the image.
+# ENABLE_MOONLIGHT=1 downloads a pinned release at container start.
+COPY scripts/fetch-moonlight-web.sh /usr/local/bin/fetch-moonlight-web
+COPY scripts/moonlight-web-entrypoint.sh /entrypoint.sh
+RUN chmod +x /usr/local/bin/fetch-moonlight-web /entrypoint.sh
+
+VOLUME /data
+
+EXPOSE 19080
+
+# start-period covers first-boot ENABLE_MOONLIGHT fetch (~15MB) before listen.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s \
+  CMD curl -fsS http://127.0.0.1:19080/mlw/config.js || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]

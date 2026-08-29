@@ -1,41 +1,46 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
-  moonlightBinariesPresent,
   moonlightUnavailablePayload,
   MOONLIGHT_UNAVAILABLE_BODY,
   MOONLIGHT_MISSING_HINT,
   filterListedConnections,
+  isMoonlightWebAvailable,
+  moonlightUpstream,
 } from '../src/services/moonlightWeb.js';
 
-describe('moonlightBinariesPresent', () => {
-  it('is false when the directory is missing or empty', () => {
-    assert.equal(moonlightBinariesPresent(undefined), false);
-    assert.equal(moonlightBinariesPresent(null), false);
-    assert.equal(moonlightBinariesPresent(''), false);
-
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gatwy-mlw-'));
+describe('isMoonlightWebAvailable', () => {
+  it('is true only for ENABLE_MOONLIGHT=1/true/yes', () => {
+    const previous = process.env.ENABLE_MOONLIGHT;
     try {
-      assert.equal(moonlightBinariesPresent(dir), false);
-      fs.writeFileSync(path.join(dir, 'web-server'), '');
-      assert.equal(moonlightBinariesPresent(dir), false);
+      delete process.env.ENABLE_MOONLIGHT;
+      assert.equal(isMoonlightWebAvailable(), false);
+
+      process.env.ENABLE_MOONLIGHT = '0';
+      assert.equal(isMoonlightWebAvailable(), false);
+
+      process.env.ENABLE_MOONLIGHT = '1';
+      assert.equal(isMoonlightWebAvailable(), true);
+
+      process.env.ENABLE_MOONLIGHT = 'true';
+      assert.equal(isMoonlightWebAvailable(), true);
+
+      process.env.ENABLE_MOONLIGHT = 'YES';
+      assert.equal(isMoonlightWebAvailable(), true);
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
+      if (previous === undefined) delete process.env.ENABLE_MOONLIGHT;
+      else process.env.ENABLE_MOONLIGHT = previous;
     }
   });
+});
 
-  it('is true only when web-server and streamer both exist', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gatwy-mlw-'));
-    try {
-      fs.writeFileSync(path.join(dir, 'web-server'), '');
-      fs.writeFileSync(path.join(dir, 'streamer'), '');
-      assert.equal(moonlightBinariesPresent(dir), true);
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
+describe('moonlightUpstream', () => {
+  it('points at the moonlight-web sidecar, not loopback', () => {
+    const upstream = moonlightUpstream();
+    assert.equal(upstream.host, 'moonlight-web');
+    assert.equal(upstream.port, 19080);
+    assert.notEqual(upstream.host, '127.0.0.1');
+    assert.notEqual(upstream.host, 'localhost');
   });
 });
 
